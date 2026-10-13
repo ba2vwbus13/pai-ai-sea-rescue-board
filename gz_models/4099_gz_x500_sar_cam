@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# @name Gazebo x500 SAR camera (PAI 最終課題: 前方斜め下 30° カメラの捜索用機体)
+#
+# @type Quadrotor
+#
+
+PX4_SIM_MODEL=${PX4_SIM_MODEL:=x500_sar_cam}
+
+. ${R}etc/init.d-posix/airframes/4001_gz_x500
+
+# 地上局(QGroundControl)なしで ROS 2 から自律飛行させるため、
+# データリンク喪失時の動作を無効にする(有効だと GCS 未接続でアームできない)
+param set-default NAV_DLL_ACT 0

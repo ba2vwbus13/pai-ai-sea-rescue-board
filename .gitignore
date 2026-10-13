@@ -1,0 +1,17 @@
+*.onnx
+*.pt
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+results/mission_*
+results/truth_2*
+results/final_dashboard.png
+tests/sea_frames/
+tests/sea_test.sdf
+worlds/sea_sar.sdf
+tests/mv1/
+tests/mv2/
+__pycache__/
+.DS_Store
+*.mp4
+提出物/

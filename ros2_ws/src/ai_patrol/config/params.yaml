@@ -1,0 +1,58 @@
+# AI 捜索ドローンのパラメータ
+ai_detector:
+  ros__parameters:
+    conf_threshold: 0.30        # YOLO の確信度しきい値
+    detect_rate_hz: 1.0         # 推論の周期(タイル9枚で約1秒)
+    hfov: 1.74                  # カメラの水平画角 [rad](PX4 mono_cam)
+    cam_tilt_deg: 30.0          # カメラの傾き(真下から機首方向へ)[deg]
+    max_range: 40.0             # これより遠い検出は位置誤差が大きいので使わない [m]
+    tile_alt_threshold: 12.0    # これより高いと 3x3 分割、低いと 2x2 分割
+    min_alt: 4.0                # これより低いときは推論しない(離着陸時)
+
+ai_mission:
+  ros__parameters:
+    # 通報内容と海流の予報
+    datum_north: -70.0          # 監視員が遭難者を最後に見た地点(離陸地点からの北方向)[m]
+    datum_east: 20.0
+    incident_elapsed_s: 120.0   # 事案発生から出動までの時間 [s]
+    current_speed: 0.25         # 離岸流 + 沿岸流の速さ [m/s]
+    current_to_deg: 200.0       # 海流が流れていく方位 [deg]
+    persons_on_board: 3         # 遭難者の数。全員にボートが着いたら捜索を打ち切る
+    # 捜索
+    patrol_alt: 18.0            # 捜索高度 [m]
+    inspect_alt: 10.0           # 確認高度 [m]
+    escort_alt: 12.0            # ボート誘導中に遭難者を見守る高度 [m]
+    cam_tilt_deg: 30.0          # カメラの傾き [deg]
+    search_overlap: 0.25        # 拡大方形捜索の脚の間隔 = 撮影幅 x (1 - overlap)
+    search_legs: 10             # 拡大方形捜索の脚の数
+    patrol_speed: 7.0           # 捜索速度 [m/s]
+    transit_speed: 10.0         # 移動速度 [m/s]
+    vertical_speed: 3.0         # 昇降速度 [m/s]
+    candidate_conf: 0.45        # 捜索中に「候補」とする確信度
+    confirm_conf: 0.60          # 確認高度で「確定」とする確信度
+    confirm_count: 2            # 確定に必要な検出回数
+    merge_radius: 8.0           # これより近い検出は同じ対象とみなす [m](漂流を予測して比較)
+    observe_s: 3.0              # 確認高度での最低観測時間 [s]
+    observe_timeout_s: 6.0      # これを過ぎても確定できなければ棄却 [s]
+    operator_delay_s: 3.0       # オペレータが映像を確認して GO を出すまでの時間 [s]
+    lora_update_s: 1.0          # ボートへ座標を送る間隔 [s]
+
+board_sim:
+  ros__parameters:
+    boards: "B1:-5:12:180,B2:-5:18:180,B3:-5:24:180"   # id:北:東:向き(水際で待機)
+    max_speed: 6.0              # 最高速度 [m/s](21.6 km/h)
+    takeoff_speed: 4.0          # 離水する速度 [m/s](14.4 km/h)
+    accel: 1.5                  # 加速度 [m/s^2]
+    decel: 3.0                  # 減速度 [m/s^2](逆転)
+    yaw_kp: 2.0                 # 方位の P ゲイン [1/s]
+    max_yaw_rate: 1.0           # 最大ヨーレート [rad/s](離水中は 6 割)
+    standoff: 2.0               # 遭難者の手前で止まる距離 [m]
+    slow_radius: 25.0           # 減速を始める距離 [m]
+    current_speed: 0.25         # 海流(ボートも流される)
+    current_to_deg: 200.0
+
+lora_link:
+  ros__parameters:
+    loss_rate: 0.03             # パケットロス率
+    proc_delay_s: 0.02          # 処理遅延 [s]
+    sf: 7                       # 拡散率(SF7, 125 kHz)

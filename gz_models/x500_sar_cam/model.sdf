@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  捜索用機体: PX4 の x500 + mono_cam。カメラを真下から機首方向へ 30° 起こしている
+  (pitch = 90° - 30° = 60° = 1.0472 rad)。
+  真下向きだと立っている人は頭と肩しか写らず AI の確信度が上がらないため、
+  斜めから人の全身を写す(tests/make_tilt_test_world.py の実験で決定)。
+-->
+<sdf version="1.9">
+  <model name="x500_sar_cam">
+    <self_collide>false</self_collide>
+    <include merge="true">
+      <uri>x500</uri>
+    </include>
+    <include merge="true">
+      <uri>model://mono_cam</uri>
+      <pose>0.1 0 -0.02 0 1.0472 0</pose>
+      <name>mono_cam</name>
+    </include>
+    <joint name="CameraJoint" type="fixed">
+      <parent>base_link</parent>
+      <child>camera_link</child>
+      <pose relative_to="base_link">0.1 0 -0.02 0 1.0472 0</pose>
+    </joint>
+  </model>
+</sdf>
