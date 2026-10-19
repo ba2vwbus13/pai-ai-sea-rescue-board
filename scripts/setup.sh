@@ -19,7 +19,7 @@ if [ ! -f "$PAI_MODELS/yolo11m.onnx" ] || [ ! -f "$PAI_MODELS/yolo11s.onnx" ]; t
      "$EXP/bin/yolo" export model=$m.pt format=onnx imgsz=640 opset=12 > /dev/null; rm -f $m.pt; done)
 fi
 
-echo "== 3. Gazebo のモデルを取得し、ワールドと捜索用機体を PX4 に登録"
+echo "== 3. Gazebo のモデルを取得し、ワールド・捜索用機体・ボードを PX4 に登録"
 for m in "Casual female" "Rescue Randy" "Standing person" "Walking person" "RC Boat" \
          "Coast Water" Pier "Vessel C" mb_round_buoy_orange mb_marker_buoy_red; do
   gz fuel download -u "https://fuel.gazebosim.org/1.0/OpenRobotics/models/${m// /%20}" > /dev/null || true
@@ -27,6 +27,7 @@ done
 /usr/bin/python3 "$PAI_ROOT/worlds/make_world.py"
 ln -sf "$PAI_ROOT/worlds/sea_board.sdf" "$PX4_DIR/Tools/simulation/gz/worlds/sea_board.sdf"
 ln -sfn "$PAI_ROOT/gz_models/x500_sar_cam" "$PX4_DIR/Tools/simulation/gz/models/x500_sar_cam"
+ln -sfn "$PAI_ROOT/gz_models/efoil_board" "$PX4_DIR/Tools/simulation/gz/models/efoil_board"
 AF=$PX4_DIR/ROMFS/px4fmu_common/init.d-posix/airframes
 cp "$PAI_ROOT/gz_models/4099_gz_x500_sar_cam" "$AF/"
 grep -q 4099_gz_x500_sar_cam "$AF/CMakeLists.txt" || \

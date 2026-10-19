@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """海難救助(ドローン + フォイルボード)ミッションの評価。
 
-報告書 JSON を、Gazebo から記録した本当の位置(truth_*.jsonl)と照合し、WiCON 計画書の
+報告書 JSON を、Gazebo から記録した本当の位置(truth_*.jsonl)と照合し、
 数値目標に対応する指標を出す。
   - 発見数・誤った確定、確定時点の位置誤差
-  - 事案発生からボート到着までの時間(目標 5 分以内)
-  - ボート到着時の遭難者との距離(目標: 停止距離 2 m に対する誤差 2 m 以内)
+  - 事案発生からボード到着までの時間(目標 5 分以内)
+  - ボード到着時の遭難者との距離(目標: 停止距離 2 m に対する誤差 2 m 以内)
   - LoRa の受信成功率・遅延・送信時間の割合(デューティ)
   - 映像伝送時間と、常時伝送に対する削減率
 出力: 標準出力の表と、結果地図 PNG(報告書と同じ名前)。
@@ -109,7 +109,7 @@ def main():
             row.update(arrive=t['arrive_t'] - t_incident, transit=t['arrive_t'] - t['dispatch_t'],
                        gap=math.hypot(bp[0] - pp[0], bp[1] - pp[1]))
         rows.append(row)
-    print('  遭難者    ID  ボート  発見   確定   到着(事案発生から)  航行時間  ボートとの距離  推定誤差')
+    print('  遭難者    ID  ボード  発見   確定   到着(事案発生から)  航行時間  ボードとの距離  推定誤差')
     for r in rows:
         if 'arrive' in r:
             print(f'  {r["person"]:9s} {r["id"]:3s} {r["board"]:4s}  {r["found"]:5.0f}s {r["confirm"]:5.0f}s '
@@ -117,11 +117,11 @@ def main():
                   f'{r["gap"]:5.2f} m        {r["err"]:.2f} m')
     arr = [r for r in rows if 'arrive' in r]
     if arr:
-        print(f'事案発生から全員にボート到着: {max(r["arrive"] for r in arr):.0f} s '
+        print(f'事案発生から全員にボード到着: {max(r["arrive"] for r in arr):.0f} s '
               f'({max(r["arrive"] for r in arr) / 60:.1f} 分、目標 5 分以内: '
               f'{sum(r["arrive"] <= 300 for r in arr)}/{len(arr)} 名)')
         gaps = [r['gap'] for r in arr]
-        print(f'ボートと遭難者の距離 平均 {sum(gaps) / len(gaps):.2f} m / 最大 {max(gaps):.2f} m'
+        print(f'ボードと遭難者の距離 平均 {sum(gaps) / len(gaps):.2f} m / 最大 {max(gaps):.2f} m'
               f'(停止距離 2 m に対する誤差 最大 {max(abs(g - 2.0) for g in gaps):.2f} m)')
     lo = rep.get('lora')
     if lo and lo['n_tx']:
@@ -167,7 +167,7 @@ def main():
     ax.set_ylabel('北 [m]')
     ax.set_aspect('equal')
     ax.grid(alpha=0.3)
-    title = f'{len(persons)} 名中 {len(arr)} 名にボート到着'
+    title = f'{len(persons)} 名中 {len(arr)} 名にボード到着'
     if arr:
         title += f'(事案発生から {max(r["arrive"] for r in arr) / 60:.1f} 分)'
     ax.set_title(title)

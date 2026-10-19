@@ -33,11 +33,15 @@ class LoraLink(Node):
         self.declare_parameter('loss_rate', 0.03)        # パケットロス率
         self.declare_parameter('proc_delay_s', 0.02)     # 処理遅延 [s]
         self.declare_parameter('sf', 7)
-        self.declare_parameter('seed', 1)
+        self.declare_parameter('seed', -1)        # 負なら実行のたびに変える
         self.loss = self.get_parameter('loss_rate').value
         self.proc = self.get_parameter('proc_delay_s').value
         self.sf = self.get_parameter('sf').value
-        random.seed(self.get_parameter('seed').value)
+        seed = self.get_parameter('seed').value
+        if seed < 0:
+            seed = int(time.time() * 1000) % (2 ** 31)   # 実行のたびに違うくじにする
+        self.seed = seed
+        random.seed(seed)
         self.pub_rx = self.create_publisher(String, '/rescue/lora/rx', 20)
         self.pub_stats = self.create_publisher(String, '/rescue/lora/stats', 10)
         self.create_subscription(String, '/rescue/lora/tx', self._on_tx, 20)
@@ -78,7 +82,8 @@ class LoraLink(Node):
         s = dict(n_tx=self.n_tx, n_rx=self.n_rx, bytes=self.bytes, airtime_s=round(self.airtime, 3),
                  duty=round(self.airtime / el, 5),
                  delay_ms_mean=round(1000 * sum(self.delays) / len(self.delays), 1) if self.delays else None,
-                 delay_ms_max=round(1000 * max(self.delays), 1) if self.delays else None, sf=self.sf)
+                 delay_ms_max=round(1000 * max(self.delays), 1) if self.delays else None, sf=self.sf,
+                 seed=self.seed, loss_rate=self.loss)
         self.pub_stats.publish(String(data=json.dumps(s)))
 
 

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>AI 海難救助システム 説明資料</title>
+<style>
+  @page { size: A4; margin: 15mm 15mm 14mm; @bottom-center { content: counter(page) " / " counter(pages); font-size: 8.5pt; color: #57606a; font-family: "Hiragino Sans", sans-serif; } }
+  :root { --accent: #0b6aa8; --warm: #e8590c; --ok: #1a7f37; --ng: #cf222e; --ink: #1f2328; --sub: #57606a; --line: #d0d7de; --bg: #f6f8fa; }
+  body { font-family: "Hiragino Sans", "Noto Sans CJK JP", sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.65; margin: 0; }
+  h1 { font-size: 20pt; margin: 0 0 1mm; }
+  .subtitle { color: var(--warm); font-size: 12.5pt; font-weight: 700; margin-bottom: 2mm; }
+  .meta { color: var(--sub); font-size: 9pt; margin-bottom: 3mm; }
+  h2 { font-size: 13pt; border-left: 5px solid var(--accent); padding-left: 3mm; margin: 5mm 0 2mm; break-after: avoid; }
+  h3 { font-size: 11pt; margin: 3mm 0 1mm; color: var(--accent); break-after: avoid; }
+  p { margin: 1.5mm 0; }
+  table { border-collapse: collapse; width: 100%; margin: 2mm 0 3mm; font-size: 9pt; break-inside: avoid; }
+  caption { font-size: 9pt; color: var(--sub); caption-side: top; text-align: left; padding-bottom: 1mm; }
+  th, td { border: 1px solid var(--line); padding: 1.2mm 2mm; text-align: center; vertical-align: middle; }
+  th { background: var(--bg); }
+  td.l, th.l { text-align: left; }
+  .ok { color: var(--ok); font-weight: 700; } .ng { color: var(--ng); font-weight: 700; }
+  figure { margin: 2mm 0 3mm; text-align: center; break-inside: avoid; }
+  figure img { max-width: 100%; border: 1px solid var(--line); }
+  figcaption { font-size: 8.5pt; color: var(--sub); margin-top: 1mm; text-align: left; }
+  ul { margin: 1mm 0; padding-left: 6mm; } li { margin: .6mm 0; }
+  .box { border: 1px solid var(--line); background: var(--bg); border-radius: 2mm; padding: 2mm 3mm; margin: 2mm 0; break-inside: avoid; }
+  .key { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2mm; margin: 2mm 0 3mm; }
+  .key div { border: 1px solid var(--line); border-radius: 2mm; padding: 2mm; text-align: center; }
+  .key b { display: block; font-size: 15pt; color: var(--accent); }
+  .key span { font-size: 8.5pt; color: var(--sub); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 4mm; align-items: start; }
+  .pb { break-before: page; }
+  code { font-family: Menlo, monospace; font-size: 8.5pt; background: var(--bg); padding: 0 1mm; }
+  svg text { font-family: "Hiragino Sans", "Noto Sans CJK JP", sans-serif; }
+</style>
+</head>
+<body>
+
+<h1>AI 海難救助システム</h1>
+<div class="subtitle">ドローンが AI で遭難者を見つけ、自律フォイルボードが駆けつける</div>
+<div class="meta">Physical AI 応用講座1 最終課題 ／ omnicampus アカウント: ba2vwbus ／ 2026 年 10 月<br>
+動画: YouTube「PAI最終課題_ba2vwbus」(本編は 2 倍速) ／ コード: https://github.com/ba2vwbus13/pai-ai-sea-rescue-board</div>
+
+<figure><img src="img/demo_frame.png" style="width:100%">
+<figcaption>図1 動画の画面。左はドローンのカメラ映像と AI の検出結果(赤い枠が人)。右上は Gazebo の 3D 画面で、3 台目のボード B3 が 3 人目の遭難者へ向かっている。右下は捜索マップ(緑の線がボードの航跡)と、救助の進み具合。左下は出来事の記録。</figcaption></figure>
+
+<h2>1. 概要</h2>
+<p>海水浴場で、遊泳者が離岸流に流される事故を想定した。ドローン 1 機と、無人で走るフォイルボード 3 台が協力して救助する。ロボットが行うタスクは次の 4 つである。</p>
+<ol style="margin:1mm 0;padding-left:6mm">
+  <li>ドローンが遭難者を<b>捜す</b>。ドローンは、遭難者が海流で流された先を予測し、その地点から渦巻き状に捜索する。</li>
+  <li>ドローンが遭難者を<b>見つける</b>。カメラ映像を AI(YOLO11m)で調べ、人らしいものを見つけたら、降下してもう一度確かめる。</li>
+  <li>ドローンがボードに位置を<b>知らせる</b>。オペレータがボードを発進させたあと、ドローンは遭難者の上空にとどまり、遭難者の位置を LoRa 無線で毎秒ボードへ送る。</li>
+  <li>ボードが遭難者のもとへ<b>駆けつける</b>。ボードは、遭難者が流れていく先を予測して先回りし、遭難者の手前 2 m で止まって浮き具の代わりになる。</li>
+</ol>
+<p>すべて、PX4(ドローンの飛行制御)・Gazebo(物理シミュレータ)・ROS 2(ロボットのプログラム同士をつなぐ仕組み)の上で動かした。</p>
+
+<div class="key">
+  <div><b>3 / 3 名</b><span>3 回の実行すべてで<br>全員を発見しボード到着</span></div>
+  <div><b>0 件</b><span>人以外を遭難者と<br>判定した誤り</span></div>
+  <div><b>0.5 m 以内</b><span>停止距離 2 m に対する<br>ボードの到着誤差</span></div>
+  <div><b>約 85 ms</b><span>ドローン → ボードの<br>座標伝送の平均遅延</span></div>
+</div>
+
+<h2>2. 目的</h2>
+<p>離岸流に流された人は、1 分間に約 15 m 沖へ運ばれる(流速 0.25 m/s のとき)。監視員が見失うと、どこを捜せばよいかわからなくなり、見つけても泳いで助けに行く人が危険にさらされる。</p>
+<p>そこで、<b>人が海に入らずに</b>、事案発生から <b>5 分以内</b>に遭難者のもとへ浮力のあるものを届けることを目標にした。捜索をドローンと AI に任せ、救助をボードに任せることで、監視員は映像を見て判断することに集中できる。</p>
+
+<h2>3. システムの構成</h2>
+<figure>
+<svg viewBox="0 0 720 300" width="100%">
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#57606a"/></marker></defs>
+  <!-- Gazebo -->
+  <rect x="10" y="10" width="700" height="70" rx="8" fill="#fff4e6" stroke="#e8590c"/>
+  <text x="22" y="32" font-size="13" font-weight="700" fill="#e8590c">Gazebo Harmonic(物理シミュレータ)</text>
+  <text x="22" y="54" font-size="11.5">海・砂浜、流される遭難者 3 名、フォイルボード 3 台、ドローン(前方斜め下 30° のカメラ付き)</text>
+  <text x="22" y="72" font-size="11.5" fill="#57606a">遭難者は海流 0.25 m/s・方位 200° で流れ続ける</text>
+  <!-- PX4 -->
+  <rect x="10" y="105" width="150" height="80" rx="8" fill="#eef6fc" stroke="#0b6aa8"/>
+  <text x="22" y="128" font-size="13" font-weight="700" fill="#0b6aa8">PX4 SITL</text>
+  <text x="22" y="148" font-size="11">ドローンの飛行制御</text>
+  <text x="22" y="166" font-size="11">(姿勢・位置を安定化)</text>
+  <!-- ROS2 nodes -->
+  <rect x="185" y="105" width="525" height="185" rx="8" fill="#f6f8fa" stroke="#57606a"/>
+  <text x="197" y="125" font-size="13" font-weight="700">自作のプログラム(ROS 2 Humble のノード 5 本 + 評価用 1 本)</text>
+  <rect x="197" y="137" width="150" height="62" rx="6" fill="#fff" stroke="#cf222e"/>
+  <text x="207" y="157" font-size="12" font-weight="700" fill="#cf222e">detector</text>
+  <text x="207" y="174" font-size="10.5">YOLO11m(GPU)で人を検出</text>
+  <text x="207" y="190" font-size="10.5">画素 → 海面上の位置</text>
+  <rect x="373" y="137" width="150" height="62" rx="6" fill="#fff" stroke="#0b6aa8"/>
+  <text x="383" y="157" font-size="12" font-weight="700" fill="#0b6aa8">mission(頭)</text>
+  <text x="383" y="174" font-size="10.5">漂流予測・捜索・確認</text>
+  <text x="383" y="190" font-size="10.5">ボードの発進・状態の管理</text>
+  <rect x="549" y="137" width="150" height="62" rx="6" fill="#fff" stroke="#8250df"/>
+  <text x="559" y="157" font-size="12" font-weight="700" fill="#8250df">lora_link</text>
+  <text x="559" y="174" font-size="10.5">LoRa 無線の模擬</text>
+  <text x="559" y="190" font-size="10.5">遅延・パケットロス 3%</text>
+  <rect x="549" y="215" width="150" height="62" rx="6" fill="#fff" stroke="#1a7f37"/>
+  <text x="559" y="235" font-size="12" font-weight="700" fill="#1a7f37">board</text>
+  <text x="559" y="252" font-size="10.5">ボード 3 台の誘導・操縦</text>
+  <text x="559" y="268" font-size="10.5">先回り・手前 2 m で停止</text>
+  <rect x="197" y="215" width="150" height="62" rx="6" fill="#fff" stroke="#57606a"/>
+  <text x="207" y="235" font-size="12" font-weight="700">dashboard</text>
+  <text x="207" y="252" font-size="10.5">オペレータの画面</text>
+  <text x="207" y="268" font-size="10.5">(図1 の画面)</text>
+  <rect x="373" y="215" width="150" height="62" rx="6" fill="#fff" stroke="#57606a" stroke-dasharray="4 3"/>
+  <text x="383" y="235" font-size="12" font-weight="700">truth_logger</text>
+  <text x="383" y="252" font-size="10.5">評価専用。本当の位置を</text>
+  <text x="383" y="268" font-size="10.5">記録(AI には渡さない)</text>
+  <!-- arrows -->
+  <line x1="272" y1="80" x2="272" y2="135" stroke="#57606a" marker-end="url(#ar)"/>
+  <text x="266" y="91" font-size="10" fill="#57606a" text-anchor="end">カメラ画像</text>
+  <line x1="85" y1="80" x2="85" y2="103" stroke="#57606a" marker-end="url(#ar)"/>
+  <line x1="347" y1="168" x2="371" y2="168" stroke="#57606a" marker-end="url(#ar)"/>
+  <line x1="523" y1="168" x2="547" y2="168" stroke="#57606a" marker-end="url(#ar)"/>
+  <line x1="624" y1="199" x2="624" y2="213" stroke="#57606a" marker-end="url(#ar)"/>
+  <path d="M448,137 L448,95 L172,95 L172,150 L162,150" fill="none" stroke="#57606a" marker-end="url(#ar)"/>
+  <text x="300" y="91" font-size="10" fill="#57606a">飛ぶ位置の指令(10 Hz、Micro XRCE-DDS 経由)</text>
+  <line x1="660" y1="215" x2="660" y2="82" stroke="#1a7f37" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+  <text x="655" y="98" font-size="10" fill="#1a7f37" text-anchor="end">ボードを動かす</text>
+</svg>
+<figcaption>図2 システムの構成。Gazebo が世界を、PX4 がドローンの飛行を受け持つ。AI と救助の判断は、自作した ROS 2 のノードが行う。ノード同士はトピックでメッセージをやりとりする。PX4 は ROS 2 のノードではないので、Micro XRCE-DDS(PX4 の中のクライアントと PC 上のエージェントを UDP でつなぐ仕組み)を通して、ROS 2 のトピックと PX4 の中の通信を橋渡しする。</figcaption>
+</figure>
+
+<h3>処理の流れ(mission ノードの状態)</h3>
+<figure>
+<svg viewBox="0 0 720 175" width="100%">
+  <defs><marker id="ar2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#57606a"/></marker></defs>
+  <g font-size="11">
+    <rect x="5" y="10" width="105" height="58" rx="6" fill="#eef6fc" stroke="#0b6aa8"/><text x="57" y="33" text-anchor="middle" font-weight="700">① 漂流予測</text><text x="57" y="52" text-anchor="middle" font-size="9.5">目撃地点 + 海流 × 2 分</text>
+    <rect x="125" y="10" width="105" height="58" rx="6" fill="#eef6fc" stroke="#0b6aa8"/><text x="177" y="33" text-anchor="middle" font-weight="700">② 捜索</text><text x="177" y="52" text-anchor="middle" font-size="9.5">拡大方形・高度 18 m</text>
+    <rect x="245" y="10" width="105" height="58" rx="6" fill="#ffeef0" stroke="#cf222e"/><text x="297" y="33" text-anchor="middle" font-weight="700">③ 候補を発見</text><text x="297" y="52" text-anchor="middle" font-size="9.5">確信度 0.45 以上</text>
+    <rect x="365" y="10" width="105" height="58" rx="6" fill="#ffeef0" stroke="#cf222e"/><text x="417" y="33" text-anchor="middle" font-weight="700">④ 降下して確認</text><text x="417" y="52" text-anchor="middle" font-size="9.5">高度 10 m・0.60 以上 2 回</text>
+    <rect x="485" y="10" width="105" height="58" rx="6" fill="#fff4e6" stroke="#e8590c"/><text x="537" y="33" text-anchor="middle" font-weight="700">⑤ オペレータ</text><text x="537" y="52" text-anchor="middle" font-size="9.5">映像を見てボードを発進させる</text>
+    <rect x="605" y="10" width="110" height="58" rx="6" fill="#e9f7ec" stroke="#1a7f37"/><text x="660" y="33" text-anchor="middle" font-weight="700">⑥ 見守り</text><text x="660" y="52" text-anchor="middle" font-size="9.5">位置を LoRa で毎秒送る</text>
+    <line x1="110" y1="39" x2="123" y2="39" stroke="#57606a" marker-end="url(#ar2)"/>
+    <line x1="230" y1="39" x2="243" y2="39" stroke="#57606a" marker-end="url(#ar2)"/>
+    <line x1="350" y1="39" x2="363" y2="39" stroke="#57606a" marker-end="url(#ar2)"/>
+    <line x1="470" y1="39" x2="483" y2="39" stroke="#57606a" marker-end="url(#ar2)"/>
+    <line x1="590" y1="39" x2="603" y2="39" stroke="#57606a" marker-end="url(#ar2)"/>
+    <path d="M417,68 L417,100 L177,100 L177,70" fill="none" stroke="#cf222e" stroke-dasharray="4 3" marker-end="url(#ar2)"/>
+    <text x="297" y="94" text-anchor="middle" font-size="9.5" fill="#cf222e">確認できなければ誤検出として棄却し、捜索に戻る</text>
+    <path d="M660,68 L660,125 L177,125 L177,70" fill="none" stroke="#1a7f37" marker-end="url(#ar2)"/>
+    <text x="420" y="119" text-anchor="middle" font-size="9.5" fill="#1a7f37">ボードが到着したら、捜索に戻って次の人を捜す</text>
+    <text x="360" y="160" text-anchor="middle" font-size="10" fill="#57606a">全員にボードが到着したら帰還・着陸。ボードは ⑤ で発進し、先回り誘導で手前 2 m に止まる</text>
+  </g>
+</svg>
+<figcaption>図3 処理の流れ。ドローンは 1 機なので、確認と見守りの間は捜索が止まる。</figcaption>
+</figure>
+
+<h2>4. AI の使い方</h2>
+<p>物体検出には YOLO11m(COCO で学習済み)を使い、推論だけを行った。ONNX 形式に変換し、onnxruntime で GPU(RTX 3060)上で動かしている。カメラ画像 1280×960 を 3×3 のタイルに分けて推論するので、1 枚の推論に約 230 ms かかる。そこで、推論は毎秒 1 回にした。</p>
+<p>AI が出すのは「画像のどこに人がいるか」である。救助に必要なのは「海のどこに人がいるか」なので、次の計算で変換する。</p>
+<ol style="margin:1mm 0;padding-left:6mm">
+  <li>画像の中心からのずれを、カメラの焦点距離 537 画素で割って、カメラから見た方向にする。</li>
+  <li>カメラは前方斜め下 30° を向いているので、その傾きとドローンの姿勢で回転させ、地面に対する方向にする。</li>
+  <li>ドローンの位置からその方向へ線を伸ばし、海面と交わる点を人の位置とする。40 m より遠い点は誤差が大きいので使わない。</li>
+</ol>
+
+<h2>5. 工夫した点</h2>
+<table>
+<caption>表1 工夫した点と、その効果</caption>
+<tr><th style="width:24%">工夫</th><th class="l">内容</th><th style="width:22%">効果</th></tr>
+<tr><td>漂流予測から捜索を始める</td><td class="l">通報は事案発生の 2 分後。その間に遭難者は約 35 m 流されているので、目撃地点ではなく「目撃地点 + 海流 × 経過時間」を中心に、国際基準(IAMSAR)の拡大方形捜索を行う。脚の間隔 32 m は、カメラの見える幅から重なり 25% で決めた。</td><td>3 名とも捜索範囲内で発見</td></tr>
+<tr><td>タイル分割推論</td><td class="l">高度 18 m から見た人は、画像の中でとても小さく写る。画像を 3×3 に分けて拡大してから推論することで、小さな人を見落とさないようにした。</td><td>高度 18 m のまま発見できる</td></tr>
+<tr><td>2 段階の確認</td><td class="l">確信度 0.45 で「候補」とし、高度 10 m まで降りて 0.60 以上が 2 回出たら「確定」とする。確認できなければ棄却して捜索に戻る。</td><td>誤検出 0 件</td></tr>
+<tr><td>人が最後に判断する</td><td class="l">ボードを発進させるかどうかは、AI ではなくオペレータが映像を見て決める。映像は、候補を見つけてからボードを発進させるまでの間だけ地上へ送ると仮定した。映像の伝送そのものは模擬せず、送る時間だけを数えた。</td><td>映像を送る時間が飛行時間の 11%</td></tr>
+<tr><td>先回り誘導</td><td class="l">ボードは、遭難者の今の位置ではなく、「ボードが着くまでに流れていく先」を狙う。ドローンから毎秒届く推定位置・推定時刻・海流から計算する。</td><td>到着誤差 0.5 m 以内</td></tr>
+<tr><td>時刻を正しく付ける</td><td class="l">位置には「写真を受け取った時刻」を付ける。推論が終わった時刻を付けると、その間に流れた分だけ予測がずれるからである。</td><td>漂流の予測がずれない</td></tr>
+<tr><td>正解は評価だけに使う</td><td class="l">遭難者とボードの本当の位置は、評価専用のプログラムだけが記録する。AI と制御は、カメラ・無線で得た情報だけで動く。</td><td>公平な評価</td></tr>
+</table>
+
+<h3>先回り誘導のしくみ</h3>
+<div class="two">
+<figure style="margin:0">
+<svg viewBox="0 0 340 210" width="100%">
+  <defs><marker id="ar3" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1a7f37"/></marker>
+  <marker id="ar4" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#0b6aa8"/></marker></defs>
+  <rect x="0" y="0" width="340" height="210" fill="#eef6fc"/>
+  <circle cx="230" cy="40" r="7" fill="#cf222e"/><text x="242" y="44" font-size="11">今の推定位置</text>
+  <line x1="230" y1="40" x2="196" y2="132" stroke="#0b6aa8" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#ar4)"/>
+  <text x="222" y="95" font-size="10.5" fill="#0b6aa8">海流で流れる</text>
+  <circle cx="193" cy="140" r="7" fill="none" stroke="#cf222e" stroke-width="2"/><text x="205" y="150" font-size="11">着く頃の位置</text>
+  <rect x="30" y="180" width="26" height="10" fill="#1a7f37"/><text x="20" y="205" font-size="11">ボード</text>
+  <line x1="56" y1="182" x2="178" y2="146" stroke="#1a7f37" stroke-width="2.5" marker-end="url(#ar3)"/>
+  <line x1="56" y1="182" x2="224" y2="46" stroke="#57606a" stroke-dasharray="2 4"/>
+  <text x="70" y="110" font-size="10" fill="#57606a">今の位置を狙うと</text>
+  <text x="70" y="124" font-size="10" fill="#57606a">着いた頃にはいない</text>
+  <text x="96" y="176" font-size="10.5" fill="#1a7f37">手前 2 m を狙う</text>
+</svg>
+</figure>
+<div>
+<p style="margin-top:0">ボードが狙う点は次の式で決める。</p>
+<div class="box">狙う点 = 推定位置 + 海流 ×(今 − 推定時刻 + 到着までの時間)<br>そこから、ボードの側へ 2 m 手前の点</div>
+<p>到着までの時間は「残りの距離 ÷ 今の速さ」で、毎回計算し直す。方位は P 制御で合わせる。向きのずれに 2.0 を掛けた値を回る速さとし、その上限を 1 rad/s とする。速さが 4 m/s を超えると水中翼で船体が浮き(離水)、最高 6 m/s で走る。25 m 以内に入ったら減速し、狙う点まで 0.8 m で止まる。止まったあとは浮き具として遭難者と一緒に流れ、発光マーカーを出す。</p>
+</div>
+</div>
+
+<h2>6. 結果</h2>
+<p>同じ条件で 3 回実行した。LoRa のパケットロスは実行のたびに違う乱数で決まる。</p>
+<table>
+<caption>表2 3 回の実行結果</caption>
+<tr><th class="l">項目</th><th>1 回目</th><th>2 回目</th><th>3 回目</th><th>目標</th><th>判定</th></tr>
+<tr><td class="l">発見・確定した遭難者(誤り)</td><td>3 名(0)</td><td>3 名(0)</td><td>3 名(0)</td><td>全員</td><td class="ok">達成</td></tr>
+<tr><td class="l">見つけた順</td><td>P1→P2→P3</td><td>P1→P2→P3</td><td>P1→P3→P2</td><td>―</td><td>―</td></tr>
+<tr><td class="l">1 人目にボード到着(事案発生から)</td><td>175 s</td><td>175 s</td><td>175 s</td><td rowspan="3">300 s 以内</td><td class="ok">達成</td></tr>
+<tr><td class="l">2 人目にボード到着</td><td>234 s</td><td>266 s</td><td>240 s</td><td class="ok">達成</td></tr>
+<tr><td class="l">3 人目にボード到着</td><td>417 s</td><td>417 s</td><td>326 s</td><td class="ng">未達</td></tr>
+<tr><td class="l">ボードの航行時間(1・2・3 人目)</td><td>26・32・44 s</td><td>26・33・44 s</td><td>26・36・36 s</td><td>―</td><td>―</td></tr>
+<tr><td class="l">ボードと遭難者の距離(停止距離 2 m)</td><td>1.93〜2.23 m</td><td>1.58〜2.16 m</td><td>1.69〜2.24 m</td><td>誤差 0.5 m 以内</td><td class="ok">達成</td></tr>
+<tr><td class="l">LoRa の受信数 / 送信数</td><td>94 / 98</td><td>95 / 99</td><td>93 / 94</td><td>―</td><td>―</td></tr>
+<tr><td class="l">LoRa の遅延(平均 / 最大)</td><td>85.0 / 86.7 ms</td><td>86.7 / 89.8 ms</td><td>82.5 / 86.4 ms</td><td>100 ms 以内</td><td class="ok">達成</td></tr>
+<tr><td class="l">映像を送った時間 / 飛行時間</td><td>38 / 343 s</td><td>38 / 346 s</td><td>38 / 247 s</td><td>―</td><td>―</td></tr>
+</table>
+<p>映像を送る時間は、飛行時間の 11% だった。常に送る場合と比べて、送る時間は 89% 短い。ただし、映像のビットレート・遅れ・途切れは模擬しておらず、送る時間を数えただけである。</p>
+<p>1 回目と 2 回目は P1 → P2 → P3 の順に見つけ、3 人目の到着は 417 s だった。3 回目は、1 人目のボードが着いた直後に P3 がカメラに入り、P2 より先に見つけたので、3 人目の到着は 326 s と 91 s 早かった。どの人がいつカメラに写るかの小さな違いで、見つける順番と全体の時間が変わる。ボードは毎秒届く座標で誘導を続けるので、LoRa のパケットを 1〜4 個失っても、到着の精度は変わらなかった。</p>
+
+<div class="two">
+<figure style="margin:0"><img src="img/result_map.png">
+<figcaption>図4 1 回目の軌跡(北が上、上端が砂浜)。オレンジはドローン、緑はボード、青は遭難者の本当の漂流、赤は AI の推定位置。ドローンは漂流予測の中心から渦巻き状に捜索している。</figcaption></figure>
+<div>
+<figure style="margin:0">
+<svg viewBox="0 0 330 250" width="100%">
+  <g font-size="10">
+    <text x="0" y="12" font-size="11" font-weight="700">事案発生からの時間(1 回目)</text>
+    <!-- axis: 0..450 s → x 60..320 (0.578 px/s) -->
+    <line x1="60" y1="210" x2="320" y2="210" stroke="#57606a"/>
+    <g fill="#57606a" text-anchor="middle">
+      <text x="60" y="224">0</text><text x="118" y="224">100</text><text x="176" y="224">200</text><text x="233" y="224">300</text><text x="291" y="224">400 s</text>
+    </g>
+    <line x1="233" y1="22" x2="233" y2="210" stroke="#cf222e" stroke-dasharray="4 3"/>
+    <text x="236" y="32" fill="#cf222e">目標 5 分</text>
+    <!-- wait -->
+    <text x="0" y="55">出動まで</text><rect x="60" y="45" width="69.4" height="14" fill="#adb5bd"/>
+    <!-- person1 -->
+    <text x="0" y="95">1 人目</text>
+    <rect x="139.2" y="85" width="5.2" height="14" fill="#0b6aa8"/>
+    <rect x="144.4" y="85" width="2.3" height="14" fill="#e8590c"/>
+    <rect x="146.7" y="85" width="14.4" height="14" fill="#1a7f37"/>
+    <!-- person2 -->
+    <text x="0" y="135">2 人目</text>
+    <rect x="169.2" y="125" width="5.2" height="14" fill="#0b6aa8"/>
+    <rect x="174.4" y="125" width="2.4" height="14" fill="#e8590c"/>
+    <rect x="176.8" y="125" width="18.5" height="14" fill="#1a7f37"/>
+    <!-- person3 -->
+    <text x="0" y="175">3 人目</text>
+    <rect x="195.3" y="165" width="73.4" height="14" fill="#d0d7de"/>
+    <rect x="268.7" y="165" width="5.2" height="14" fill="#0b6aa8"/>
+    <rect x="273.9" y="165" width="1.7" height="14" fill="#e8590c"/>
+    <rect x="275.6" y="165" width="25.4" height="14" fill="#1a7f37"/>
+    <text x="232" y="160" text-anchor="middle" fill="#57606a">捜索</text>
+  </g>
+  <g font-size="9.5">
+    <rect x="0" y="236" width="9" height="9" fill="#0b6aa8"/><text x="12" y="244">確認</text>
+    <rect x="45" y="236" width="9" height="9" fill="#e8590c"/><text x="57" y="244">発進</text>
+    <rect x="90" y="236" width="9" height="9" fill="#1a7f37"/><text x="102" y="244">ボード航行</text>
+    <rect x="160" y="236" width="9" height="9" fill="#d0d7de"/><text x="172" y="244">捜索</text>
+    <rect x="205" y="236" width="9" height="9" fill="#adb5bd"/><text x="217" y="244">出動前の待ち</text>
+  </g>
+</svg>
+<figcaption>図5 時間の内訳(1 回目)。出動前の待ちが 120 s、1 人目の発見は 137 s、2 人目は 189 s、3 人目は 361 s。ボードの航行は 26〜44 s と短い。</figcaption>
+</figure>
+</div>
+</div>
+
+<h2>7. 考察と今後</h2>
+<p>3 人目の到着が 5 分を超えた理由を、時間の使われ方から調べた。ボードの航行は 44 s 以内であり、救助が遅れた原因ではなかった。時間を使っていたのは、次の 3 つである。1 つ目は、事案発生から出動までの待ち時間 120 s である。2 つ目は、捜索の外側にいた 3 人目を捜す時間である。3 つ目は、ドローンが 1 機しかないために、1 人目と 2 人目の確認と見守りをしている合計 83 s の間、捜索が止まることである。</p>
+<p>この結果から、次の 3 つの改善が考えられる。</p>
+<ul>
+  <li>ドローンを 2 機にして、確認と見守りをする役と、捜索を続ける役を分ける。そうすれば、捜索が止まる 83 s がなくなり、3 人目の発見を少なくとも 83 s 早められる。1 回目の 417 s から 83 s を引くと 334 s となり、目標の 5 分(300 s)に近づく。</li>
+  <li>通報と同時にドローンが自動で離陸するようにして、出動までの待ち時間を縮める。今は、目標の 5 分のうち 120 s が出動前に使われている。</li>
+  <li>見守り中に測った遭難者の位置の変化から、実際の海流を推定する機能を加える。今は海流の予報が正しいとしているが、実際の海では予報に誤差があるからである。</li>
+</ul>
+
+<h2>8. 制約</h2>
+<p>ボードの動きは、速さと旋回の制限、離水の高さだけを持つ簡略化したモデルで表した。波・風・浮力・流体の力は計算していない。遭難者の見た目は、Gazebo の人のモデルで代用している。LoRa は、送信時間を Semtech の式で計算し、パケットロス 3% を乱数で与えた模擬である。これらは実機で確かめる必要がある。</p>
+
+<div class="box">提出物は、次の 3 つである。動画 1 本(2 分 50 秒、本編は 2 倍速、YouTube「PAI最終課題_ba2vwbus」)・コード一式(GitHub 上記 URL。動かし方は README に記載)・本資料。使用したツールは、PX4 v1.18 SITL、Gazebo Harmonic 8、ROS 2 Humble、YOLO11m(ONNX、onnxruntime-gpu)、Ubuntu 22.04 + RTX 3060 である。</div>
+
+</body>
+</html>

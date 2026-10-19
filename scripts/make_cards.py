@@ -24,11 +24,11 @@ fp = subprocess.run(['fc-match', '-f', '%{file}', 'Noto Sans CJK JP:bold'],
 F = {s: ImageFont.truetype(fp, s) for s in (28, 36, 44, 64, 84)}
 BG, TX, SUB, ACC = (16, 30, 48), (240, 240, 240), (170, 185, 200), (255, 140, 60)
 
-# 評価(浮環の距離など)は evaluate_mission.py の出力をそのまま使う
+# 評価(ボードとの距離など)は evaluate_mission.py の出力をそのまま使う
 ev = subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'tests/evaluate_mission.py'),
                      str(rep_path)], capture_output=True, text=True).stdout
 ev_lines = {k: line for line in ev.splitlines()
-            for k in ('事案発生から全員', 'ボートと遭難者', 'LoRa', '映像伝送') if line.startswith(k)}
+            for k in ('事案発生から全員', 'ボードと遭難者', 'LoRa', '映像伝送') if line.startswith(k)}
 
 
 def center(d, y, text, font, fill):
@@ -42,12 +42,12 @@ d = ImageDraw.Draw(im)
 center(d, 220, 'AI 海難救助システム', F[84], TX)
 center(d, 350, 'ドローンが見つけ、自律フォイルボードが駆けつける', F[44], ACC)
 items = ['想定: 遊泳者 3 名が離岸流で沖へ。事案発生の 2 分後にドローンが出動',
-         '漂流予測 → 拡大方形捜索 → YOLO11m で発見・再確認 → オペレータが GO',
-         'ドローンが上空から座標を LoRa で送り、ボートが先回り誘導で接近・停止',
+         '漂流予測 → 拡大方形捜索 → YOLO11m で発見・再確認 → オペレータがボードを発進させる',
+         'ドローンが上空から座標を LoRa で送り、ボードが先回り誘導で接近・停止',
          'PX4 SITL + Gazebo Harmonic + ROS 2 Humble / 目標: 事案発生から 5 分以内']
 for i, t in enumerate(items):
     center(d, 490 + i * 70, t, F[36], SUB)
-center(d, 900, f'本編は {speed} 倍速で再生しています', F[36], TX)
+center(d, 900, f'本編は {speed} 倍速で再生', F[36], TX)
 im.save(out / 'title.png')
 
 # ---- まとめ ------------------------------------------------------------------
@@ -57,20 +57,20 @@ d.text((80, 60), '結果', font=F[64], fill=TX)
 conf = [t for t in rep['targets'] if t['status'] in ('confirmed', 'rescuing')]
 rej = [t for t in rep['targets'] if t['status'] == 'rejected']
 lines = [
-    (f'遭難者 {rep["pob"]} 名中 {rep["n_arrived"]} 名にボートが到着', F[36], ACC),
-    (f'誤検出の候補 {len(rej)} 件は、降下して再確認し棄却', F[36], TX),
+    (f'遭難者 {rep["pob"]} 名中 {rep["n_arrived"]} 名にボードが到着', F[36], ACC),
+    (f'誤検出の候補 {len(rej)} 件は、降下して再確認し棄却' if rej else 'AI の誤検出は 0 件。人以外を遭難者と判定しなかった', F[36], TX),
 ]
-for k in ('事案発生から全員', 'ボートと遭難者', 'LoRa', '映像伝送'):
+for k in ('事案発生から全員', 'ボードと遭難者', 'LoRa', '映像伝送'):
     if k in ev_lines:
         t = ev_lines[k]
-        t = t.split('(停止距離')[0].split('  送信時間')[0].replace('事案発生から全員にボート到着', '全員に到着')
+        t = t.split('(停止距離')[0].split('  送信時間')[0].replace('事案発生から全員にボード到着', '全員に到着')
         t = t.replace(' / 飛行', '/飛行').replace('常時伝送比', '常時比')
         lines.append((t, F[28], SUB))
 y = 180
 for t, f, c in lines:
     d.text((80, y), t, font=f, fill=c)
     y += 70 if f is not F[28] else 50
-d.text((80, 980), 'コード: GitHub(説明欄)  /  PAI 最終課題の発展(ドローン × フォイルボード)', font=F[28], fill=SUB)
+d.text((80, 980), 'コード: GitHub(説明欄)  /  PAI最終課題_ba2vwbus', font=F[28], fill=SUB)
 if map_png and map_png.exists():
     m = Image.open(map_png).convert('RGB')
     r = min(900 / m.height, 820 / m.width)

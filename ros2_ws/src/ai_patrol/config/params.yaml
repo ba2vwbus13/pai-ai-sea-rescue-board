@@ -17,11 +17,11 @@ ai_mission:
     incident_elapsed_s: 120.0   # 事案発生から出動までの時間 [s]
     current_speed: 0.25         # 離岸流 + 沿岸流の速さ [m/s]
     current_to_deg: 200.0       # 海流が流れていく方位 [deg]
-    persons_on_board: 3         # 遭難者の数。全員にボートが着いたら捜索を打ち切る
+    persons_on_board: 3         # 遭難者の数。全員にボードが着いたら捜索を打ち切る
     # 捜索
     patrol_alt: 18.0            # 捜索高度 [m]
     inspect_alt: 10.0           # 確認高度 [m]
-    escort_alt: 12.0            # ボート誘導中に遭難者を見守る高度 [m]
+    escort_alt: 12.0            # ボード誘導中に遭難者を見守る高度 [m]
     cam_tilt_deg: 30.0          # カメラの傾き [deg]
     search_overlap: 0.25        # 拡大方形捜索の脚の間隔 = 撮影幅 x (1 - overlap)
     search_legs: 10             # 拡大方形捜索の脚の数
@@ -34,8 +34,8 @@ ai_mission:
     merge_radius: 8.0           # これより近い検出は同じ対象とみなす [m](漂流を予測して比較)
     observe_s: 3.0              # 確認高度での最低観測時間 [s]
     observe_timeout_s: 6.0      # これを過ぎても確定できなければ棄却 [s]
-    operator_delay_s: 3.0       # オペレータが映像を確認して GO を出すまでの時間 [s]
-    lora_update_s: 1.0          # ボートへ座標を送る間隔 [s]
+    operator_delay_s: 3.0       # オペレータが映像を確認してボードを発進させるまでの時間 [s]
+    lora_update_s: 1.0          # ボードへ座標を送る間隔 [s]
 
 board_sim:
   ros__parameters:
@@ -48,7 +48,7 @@ board_sim:
     max_yaw_rate: 1.0           # 最大ヨーレート [rad/s](離水中は 6 割)
     standoff: 2.0               # 遭難者の手前で止まる距離 [m]
     slow_radius: 25.0           # 減速を始める距離 [m]
-    current_speed: 0.25         # 海流(ボートも流される)
+    current_speed: 0.25         # 海流(ボードも流される)
     current_to_deg: 200.0
 
 lora_link:
@@ -56,3 +56,4 @@ lora_link:
     loss_rate: 0.03             # パケットロス率
     proc_delay_s: 0.02          # 処理遅延 [s]
     sf: 7                       # 拡散率(SF7, 125 kHz)
+    seed: -1                    # 乱数の種。負なら実行のたびに変える(使った種は統計に記録)

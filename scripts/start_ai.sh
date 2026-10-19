@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ターミナル3: DDS エージェント + AI 海難救助システム(ドローン + ボート)を起動する(start_sim.sh, start_view.sh の後で)
+# ターミナル3: DDS エージェント + AI 海難救助システム(ドローン + ボード)を起動する(start_sim.sh, start_view.sh の後で)
 source "$(dirname "$0")/env.sh"
 source /opt/ros/humble/setup.bash
 source "$PX4_WS/install/setup.bash"
@@ -11,7 +11,7 @@ NV=$(ls -d "$PAI_VENV"/lib/python3.*/site-packages/nvidia/*/lib 2>/dev/null | pa
 export LD_LIBRARY_PATH=$NV:$LD_LIBRARY_PATH
 
 pgrep -x MicroXRCEAgent > /dev/null || (MicroXRCEAgent udp4 -p 8888 > /tmp/xrce_agent.log 2>&1 &)
-# 評価用に、遭難者とボートの本当の位置を記録する(AI 側には渡さない)
+# 評価用に、遭難者とボードの本当の位置を記録する(AI 側には渡さない)
 mkdir -p "$PAI_ROOT/results"
 pkill -f "[t]ruth_logger.py"
 PYTHONPATH= /usr/bin/python3 "$PAI_ROOT/scripts/truth_logger.py" \

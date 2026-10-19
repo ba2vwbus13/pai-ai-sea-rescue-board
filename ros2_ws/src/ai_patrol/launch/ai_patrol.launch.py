@@ -44,7 +44,7 @@ def generate_launch_description():
              parameters=[params, {'world': WORLD}],
              additional_env={'PYTHONPATH': ':'.join(
                  p for p in os.environ.get('PYTHONPATH', '').split(':') if 'pai_venv' not in p)}),
-        # ドローン → ボートの LoRa 無線リンクの模擬
+        # ドローン → ボードの LoRa 無線リンクの模擬
         Node(package='ai_patrol', executable='lora_link', output='log', parameters=[params]),
         Node(package='ai_patrol', executable='dashboard', output='log',
              parameters=[{'report_dir': report_dir,

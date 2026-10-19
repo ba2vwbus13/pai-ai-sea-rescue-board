@@ -98,12 +98,13 @@ class DetectorNode(Node):
 
     def _on_image(self, msg):
         if self.q is not None and self.pos is not None:
-            self.latest = (msg, list(self.q), tuple(self.pos))
+            # 写真を受け取った瞬間の時刻・姿勢・位置をいっしょに覚えておく
+            self.latest = (msg, list(self.q), tuple(self.pos), time.time())
 
     def _on_timer(self):
         if self.latest is None:
             return
-        msg, q, pos = self.latest
+        msg, q, pos, t_img = self.latest
         self.latest = None
         alt = -pos[2]
 
@@ -131,7 +132,8 @@ class DetectorNode(Node):
                             box=[round(d.x0), round(d.y0), round(d.x1), round(d.y1)],
                             north=round(g[0], 2), east=round(g[1], 2)))
         self.n_frames += 1
-        payload = dict(stamp=time.time(), frame=self.n_frames, backend=self.backend,
+        # stamp は「人がその位置にいた時刻」= 写真を受け取った時刻(推論が終わった時刻ではない)
+        payload = dict(stamp=t_img, frame=self.n_frames, backend=self.backend,
                        infer_ms=round(ms), tiles=tiles, cam_tilt=self.cam_tilt,
                        drone=dict(north=pos[0], east=pos[1], alt=alt, yaw=yaw_from_quat(q)),
                        detections=out)

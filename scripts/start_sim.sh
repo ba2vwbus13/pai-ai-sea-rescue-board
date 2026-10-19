@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ターミナル1: PX4 SITL + Gazebo サーバーを海難救助(ボート)ワールド・捜索用機体で起動する
+# ターミナル1: PX4 SITL + Gazebo サーバーを海難救助(ボード)ワールド・捜索用機体で起動する
 source "$(dirname "$0")/env.sh"
 # PX4 のビルドは ~/.local の kconfiglib などを使うので、ここでは無効化しない
 unset PYTHONNOUSERSITE

@@ -222,7 +222,7 @@ class Dashboard(Node):
         dr.text((MAP[0] + 8, MAP[1] + 6), '捜索マップ(北が上・上端は砂浜)', font=f[18], fill=(60, 60, 60))
         lx, ly = MAP[0] + 4, MAP[1] + MAP[3] + 8
         for mark, key, label in (('●', 'confirmed', '遭難者'), ('×', 'rejected', '棄却'),
-                                 ('◆', 'board', 'ボート'), ('×', 'datum', '目撃地点'),
+                                 ('◆', 'board', 'ボード'), ('×', 'datum', '目撃地点'),
                                  ('━', 'trail', 'ドローン')):
             dr.text((lx, ly), mark, font=f[16], fill=rgb(COL[key]))
             dr.text((lx + 18, ly), label, font=f[16], fill=rgb(COL['text']))
@@ -240,8 +240,8 @@ class Dashboard(Node):
             lines = [
                 (f'状態: {s["state_jp"]}', 26, COL['pending'] if busy else COL['text']),
                 (f'事案発生から {im:02d}:{isec:02d}(目標 5:00)', 20, COL['text']),
-                (f'遭難者 {s["pob"]} 名中 {n_conf} 名にボート到着', 26, COL['confirmed'] if n_conf else COL['text']),
-                (f'ボート出動 {s["n_dispatched"]} 台 / 誤検出の棄却 {n_rej} 件', 16, COL['text']),
+                (f'遭難者 {s["pob"]} 名中 {n_conf} 名にボード到着', 26, COL['confirmed'] if n_conf else COL['text']),
+                (f'ボード発進 {s["n_dispatched"]} 台 / 誤検出の棄却 {n_rej} 件', 16, COL['text']),
             ]
             for b in (self.boards or {}).get('boards', []):
                 extra = ''

@@ -2,16 +2,16 @@
 """自律航行フォイルボード(複数台)のシミュレーション。
 
 ドローンから LoRa(/rescue/lora/rx)で届く「遭難者の推定位置・推定時刻・海流」に向かって、
-各ボートが自律航行する。ボートの制御は WiCON 計画書の構成に合わせている。
+各ボードが自律航行する。
   - 誘導: 遭難者の予測位置(推定位置 + 海流 × 経過時間)へ。到着までの時間だけ先を読む(先回り)
   - 方位制御: 目標方位との偏差に比例してヨーレートを決める(P 制御、50 Hz 相当)
   - 速度制御: 遠い間は最高速、近づくと減速。方位偏差が大きいときも減速
   - 離水: 速度が離水速度を超えると水中翼で船体が浮く(高さを滑らかに変える)
   - 停止: 遭難者の手前 standoff [m] で停止(逆転で急減速)→ 浮体として待機し、
     海流で遭難者と一緒に流れる。発光マーカーを展開する
-ボートは海流にも流される(誘導はそれを含めて補正する)。
+ボードは海流にも流される(誘導はそれを含めて補正する)。
 
-Gazebo 上のボートとマーカーは重力なし・当たり判定なしのモデルで、このノードが set_pose で動かす。
+Gazebo 上のボードとマーカーは重力なし・当たり判定なしのモデルで、このノードが set_pose で動かす。
 gz-transport の Python バインディングを使う(システムの python3 で動かすこと)。
 """
 import json
@@ -90,7 +90,7 @@ class BoardNode(Node):
                    vn=d['v_north'], ve=d['v_east'])
         if d['type'] == 'dispatch' and b.status == 'IDLE':
             b.target, b.status, b.t_dispatch = tgt, 'TRANSIT', time.time()
-            self.get_logger().info(f'{b.id}: 出動指令を受信 → {tgt["id"]} へ')
+            self.get_logger().info(f'{b.id}: 発進の合図を受信 → {tgt["id"]} へ')
         elif d['type'] == 'update' and b.target and b.target['id'] == tgt['id']:
             b.target = tgt
             b.n_updates += 1

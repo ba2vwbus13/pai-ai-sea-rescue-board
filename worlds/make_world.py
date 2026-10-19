@@ -8,7 +8,7 @@
   - 砂浜(北側)と海(南側)。汀線は原点付近。ドローンの離陸地点は砂浜の上の原点
   - 遭難者 3 名(立ち泳ぎの人 2・浮いている人 1)が海流で流れる
     (重力なし・当たり判定なしのモデルに VelocityControl で一定速度を与える)
-  - フォイルボード 3 台(双胴船 + 水中翼)と発光マーカー 3 個。どちらも重力なし・当たり判定なしで、
+  - フォイルボード 3 台(eFoil 型:サーフボード形のボード + マスト + モーター + 水中翼)と発光マーカー 3 個。どちらも重力なし・当たり判定なしで、
     動きは board_node が set_pose で与える(マーカーは到着まで水中に隠しておく)
   - 誤検出の要因として、ブイ・浮遊物・係留された漁船・桟橋を置く
 
@@ -194,29 +194,90 @@ def drifting_model(name, visuals, x, y, z, roll, yaw, vel):
 """
 
 
-def board_model(name, x, y, yaw):
-    """自律フォイルボード(双胴船 + 水中翼 + スラスター)。見た目だけで、動きは board_node が与える。"""
-    def box(n, pose, size, rgb):
-        return (f'<visual name="{n}"><pose>{pose}</pose><geometry><box><size>{size}</size></box></geometry>'
+# ---- 自律フォイルボード(eFoil 型)-------------------------------------------
+# ボード本体はサーフボードの輪郭を押し出したメッシュ(OBJ)で作る。x が前、y が左、z が上 [m]
+BOARD_TAIL, BOARD_NOSE = -0.85, 0.95     # 後端と先端の x
+BOARD_HALF_W = 0.32                      # 最大の半幅
+BOARD_X_WIDEST = 0.10                    # 一番幅が広い所の x
+BOARD_CORNER = 0.07                      # 後ろの角の丸み
+BOARD_TOP = 0.06                         # デッキの高さ
+BOARD_RGB = (0.52, 0.78, 0.78)           # 水色
+
+
+def _board_half_width(x):
+    if x <= BOARD_X_WIDEST:
+        w = BOARD_HALF_W - 0.03 * ((BOARD_X_WIDEST - x) / (BOARD_X_WIDEST - BOARD_TAIL)) ** 2
+        d = x - BOARD_TAIL
+        if d < BOARD_CORNER:                                   # 後ろの角を丸める
+            w -= BOARD_CORNER - math.sqrt(max(0.0, BOARD_CORNER ** 2 - (BOARD_CORNER - d) ** 2))
+        return w
+    t = (x - BOARD_X_WIDEST) / (BOARD_NOSE - BOARD_X_WIDEST)
+    return BOARD_HALF_W * (1 - t ** 2.2) ** 0.62               # 先端へ丸く細くなる
+
+
+def _board_thickness(x):
+    return 0.12 - 0.06 * max(0.0, (x - 0.3) / (BOARD_NOSE - 0.3))    # 先端ほど薄い
+
+
+def _board_rocker(x):
+    return 0.07 * max(0.0, (x - 0.45) / (BOARD_NOSE - 0.45)) ** 2     # 先端の反り
+
+
+def write_board_mesh(path, n=60):
+    """ボード本体のメッシュ(OBJ と MTL)を書き出す。"""
+    xs = [BOARD_TAIL + (BOARD_NOSE - BOARD_TAIL) * i / n for i in range(n + 1)]
+    outline = [(x, _board_half_width(x)) for x in xs] + \
+              [(x, -_board_half_width(x)) for x in reversed(xs[1:-1])]
+    v = [(x, y, BOARD_TOP + _board_rocker(x)) for x, y in outline] + \
+        [(x, y, BOARD_TOP - _board_thickness(x) + _board_rocker(x)) for x, y in outline]
+    m = len(outline)
+    v += [(0.0, 0.0, BOARD_TOP), (0.0, 0.0, BOARD_TOP - 0.12)]
+    ct, cb = len(v) - 1, len(v)
+    faces = []
+    for i in range(m):
+        j = (i + 1) % m
+        faces += [(ct, j + 1, i + 1), (cb, m + i + 1, m + j + 1), (i + 1, j + 1, m + j + 1, m + i + 1)]
+
+    def normal(f):
+        a, b, c = (v[k - 1] for k in f[:3])
+        u = [b[k] - a[k] for k in range(3)]
+        w = [c[k] - a[k] for k in range(3)]
+        nn = (u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0])
+        ln = math.sqrt(sum(q * q for q in nn)) or 1.0
+        return [q / ln for q in nn]
+    path = Path(path)
+    mtl = path.with_suffix('.mtl')
+    mtl.write_text('newmtl board\nKa %.3f %.3f %.3f\nKd %.3f %.3f %.3f\nKs 0.2 0.2 0.2\nNs 30\nd 1\n'
+                   % (BOARD_RGB + BOARD_RGB))
+    lines = ['# 自動生成: worlds/make_world.py(eFoil のボード本体)', f'mtllib {mtl.name}', 'usemtl board']
+    lines += ['v %.4f %.4f %.4f' % p for p in v]
+    for k, f in enumerate(faces):
+        lines.append('vn %.4f %.4f %.4f' % tuple(normal(f)))
+        lines.append('f ' + ' '.join(f'{i}//{k + 1}' for i in f))
+    path.write_text('\n'.join(lines) + '\n')
+
+
+def board_model(name, x, y, yaw, mesh_uri):
+    """自律フォイルボード(eFoil 型:ボード + マスト + モーター + 前後の水中翼)。
+    見た目だけで、動きは board_node が与える。原点はボードの中心で、デッキは +0.06 m。"""
+    def vis(n, pose, geom, rgb):
+        return (f'<visual name="{n}"><pose>{pose}</pose><geometry>{geom}</geometry>'
                 f'<material><diffuse>{rgb} 1</diffuse><ambient>{rgb} 1</ambient></material></visual>')
+    teal, dark, pad = '%.2f %.2f %.2f' % BOARD_RGB, '0.12 0.12 0.13', '0.25 0.27 0.28'
     v = [
-        box('hull_l', '0 0.34 0 0 0 0', '1.4 0.22 0.18', '0.98 0.45 0.05'),
-        box('hull_r', '0 -0.34 0 0 0 0', '1.4 0.22 0.18', '0.98 0.45 0.05'),
-        box('deck', '-0.05 0 0.11 0 0 0', '0.95 0.9 0.04', '0.95 0.95 0.95'),
-        box('float_f', '0.55 0 0.1 0 0 0', '0.12 0.9 0.08', '1 0.85 0.1'),
-        box('float_b', '-0.6 0 0.1 0 0 0', '0.12 0.9 0.08', '1 0.85 0.1'),
-        box('mast', '-0.55 0 -0.25 0 0 0', '0.05 0.12 0.45', '0.3 0.3 0.3'),
-        box('foil_f', '0.45 0 -0.42 0 0 0', '0.12 0.9 0.02', '0.25 0.25 0.25'),
-        box('strut_f', '0.45 0 -0.2 0 0 0', '0.04 0.08 0.42', '0.3 0.3 0.3'),
-        box('foil_r', '-0.55 0 -0.45 0 0 0', '0.1 0.5 0.02', '0.25 0.25 0.25'),
-        box('box', '-0.05 0 0.17 0 0 0', '0.35 0.25 0.08', '0.2 0.45 0.8'),
-        '<visual name="thruster"><pose>-0.62 0 -0.42 0 1.5708 0</pose><geometry><cylinder>'
-        '<radius>0.05</radius><length>0.14</length></cylinder></geometry>'
-        '<material><diffuse>0.1 0.1 0.1 1</diffuse></material></visual>',
+        vis('board', '0 0 0 0 0 0', f'<mesh><uri>{mesh_uri}</uri></mesh>', teal),
+        vis('pad', '-0.30 0 0.064 0 0 0', '<box><size>0.80 0.48 0.008</size></box>', pad),
+        vis('hatch', '0.30 0 0.068 0 0 0', '<box><size>0.26 0.20 0.008</size></box>', '0.30 0.33 0.35'),
+        vis('mast', '-0.35 0 -0.42 0 0 0', '<box><size>0.06 0.13 0.78</size></box>', dark),
+        vis('fuselage', '-0.25 0 -0.82 0 1.5708 0', '<cylinder><radius>0.025</radius><length>0.95</length></cylinder>', dark),
+        vis('motor', '-0.40 0 -0.82 0 1.5708 0', '<cylinder><radius>0.06</radius><length>0.26</length></cylinder>', dark),
+        vis('prop', '-0.56 0 -0.82 0 1.5708 0', '<cylinder><radius>0.10</radius><length>0.015</length></cylinder>', '0.2 0.2 0.22'),
+        vis('wing_front', '0.17 0 -0.82 0 0 0', '<ellipsoid><radii>0.13 0.42 0.014</radii></ellipsoid>', teal),
+        vis('wing_rear', '-0.68 0 -0.82 0 0 0', '<ellipsoid><radii>0.07 0.21 0.01</radii></ellipsoid>', teal),
     ]
     return f"""    <model name="{name}"><pose>{x:.2f} {y:.2f} 0.05 0 0 {yaw:.4f}</pose>
       <link name="link"><gravity>false</gravity>
-        <inertial><mass>12</mass><inertia><ixx>1</ixx><iyy>1</iyy><izz>1</izz></inertia></inertial>
+        <inertial><mass>25</mass><inertia><ixx>1</ixx><iyy>1</iyy><izz>1</izz></inertia></inertial>
         {''.join(v)}
       </link>
     </model>
@@ -265,9 +326,13 @@ def main():
         bm, bn, be, scale = CAPSIZED
         parts.append(drifting_model('capsized_boat', fuel_visuals(bm, scale),
                                     DATUM_EAST + be + dx, DATUM_NORTH + bn + dy, 0.25, math.pi, 0.8, (vx, vy)))
+    # ボードのメッシュは gz_models/efoil_board に書き出し、model:// で参照する
+    # (setup.sh が PX4 のモデルのフォルダにリンクを張る。絶対パスをワールドに書かないため)
+    write_board_mesh(here.parent / 'gz_models' / 'efoil_board' / 'meshes' / 'efoil_board.obj')
     for bid, bn, be, hdg in BOARDS:
         # ENU のヨー(東=0、反時計回り)= 90° - 方位
-        parts.append(board_model(f'board_{bid}', be, bn, math.radians(90.0 - hdg)))
+        parts.append(board_model(f'board_{bid}', be, bn, math.radians(90.0 - hdg),
+                                 'model://efoil_board/meshes/efoil_board.obj'))
         parts.append(beacon_model(f'beacon_{bid}'))
     for i, (m, x, y, yaw) in enumerate(STATIC_FUEL):
         parts.append(include(m, f'static_{i}', x, y, yaw))

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """海難救助ミッションノード(ドローン側): 漂流予測 → 拡大方形捜索 → AI で発見 → 再確認
-→ オペレータの GO → フォイルボードを出動させ、到着まで上空から座標を送り続ける。
+→ オペレータがボードを発進させる → フォイルボードが発進し、到着まで上空から座標を送り続ける。
 
 状態遷移:
   INIT → ARMING → TAKEOFF → TRANSIT(漂流を補正した捜索基点へ)→ SEARCH ─(人の候補)→ APPROACH
-     → DESCEND → OBSERVE ─(確定)→ OPERATOR(映像を確認して GO)→ ESCORT(ボートを出動させ、
-       遭難者を追いながら LoRa で座標を送る)─(ボート到着)→ CLIMB → RESUME → SEARCH …
+     → DESCEND → OBSERVE ─(確定)→ OPERATOR(映像を確認してボードを発進させる)→ ESCORT(ボードを発進させ、
+       遭難者を追いながら LoRa で座標を送る)─(ボード到着)→ CLIMB → RESUME → SEARCH …
                          └(誤検出として棄却)→ CLIMB
-  SEARCH(全員発見してボートが到着 or 捜索パターン完了)→ RETURN → LAND → DONE(報告書を保存)
+  SEARCH(全員発見してボードが到着 or 捜索パターン完了)→ RETURN → LAND → DONE(報告書を保存)
 
-映像の伝送: 候補を見つけてから GO が出るまで(APPROACH〜OPERATOR)だけ、映像を地上へ送る想定。
+映像の伝送: 候補を見つけてからボードを発進させるまで(APPROACH〜OPERATOR)だけ、映像を地上へ送る想定。
 その時間を数えて、常時伝送と比べた通信量の削減率を報告書に残す。
 
 海難救助ならではの工夫:
@@ -18,7 +18,7 @@
   2. 拡大方形捜索(Expanding Square Search): 基点から 1S, 1S, 2S, 2S, 3S, … と
      渦巻き状に広げる。S はカメラの撮影幅から決める。
   3. 動く対象の追跡: 要救助者は海流で流され続けるので、各対象の推定位置に
-     「推定した時刻からの経過時間 × 海流」を足した予測位置で照合・接近・投下する。
+     「推定した時刻からの経過時間 × 海流」を足した予測位置で照合・接近・見守りを行う。
   4. 乗員数(POB)の活用: 通報された乗員数を全員確定したら、捜索を打ち切って帰還する。
 """
 import json
@@ -39,7 +39,7 @@ from .geo import footprint, look_offset, ned_to_latlon
 STATE_JP = {
     'INIT': '準備中', 'ARMING': 'アーム', 'TAKEOFF': '離陸', 'TRANSIT': '捜索基点へ移動',
     'SEARCH': '拡大方形捜索(AI 監視中)', 'APPROACH': '候補へ移動', 'DESCEND': '降下して確認',
-    'OBSERVE': 'AI で再確認', 'OPERATOR': 'オペレータが映像を確認', 'ESCORT': 'ボートを誘導中',
+    'OBSERVE': 'AI で再確認', 'OPERATOR': 'オペレータが映像を確認', 'ESCORT': 'ボードを誘導中',
     'CLIMB': '上昇', 'RESUME': '捜索へ復帰',
     'RETURN': '帰還', 'LAND': '着陸', 'DONE': '完了',
 }
@@ -69,7 +69,7 @@ class Target:
         self.status = 'pending'       # pending / inspecting / confirmed / rejected
         self.obs = []                 # 確認高度での (north, east, conf, t)
         self.confirm_t = None
-        self.board = None             # 出動させたボート
+        self.board = None             # 発進させたボード
         self.dispatch_t = None
         self.arrive_t = None
 
@@ -183,7 +183,7 @@ class MissionNode(Node):
         self.lora_stats = json.loads(msg.data)
 
     def _send_lora(self, kind, tg, now):
-        """遭難者の推定位置・時刻・海流をボートへ送る(数十バイトに収まる数値だけ)。"""
+        """遭難者の推定位置・時刻・海流をボードへ送る(数十バイトに収まる数値だけ)。"""
         self.pub_lora.publish(String(data=json.dumps(dict(
             type=kind, board=tg.board, target=tg.id, north=round(tg.north, 2), east=round(tg.east, 2),
             t_est=tg.t_est, v_north=round(self.vn, 3), v_east=round(self.ve, 3)))))
@@ -205,7 +205,7 @@ class MissionNode(Node):
                     self._add_candidate(d, t)
 
     def _add_candidate(self, d, t):
-        if d['north'] > -8.0:          # 砂浜(陸)と水際で待機中のボートの周りは対象外
+        if d['north'] > -8.0:          # 砂浜(陸)と水際で待機中のボードの周りは対象外
             return
         for tg in self.targets:
             pn, pe = tg.predict(t, self.vn, self.ve)
@@ -297,7 +297,7 @@ class MissionNode(Node):
             t.predict(now, self.vn, self.ve), (self.pos.x, self.pos.y)))))
 
     def _n_confirmed(self):
-        """ボートが到着した遭難者の数。"""
+        """ボードが到着した遭難者の数。"""
         return sum(t.status == 'confirmed' for t in self.targets)
 
     def _plan_search(self):
@@ -325,7 +325,7 @@ class MissionNode(Node):
             self.trail.append((round(self.pos.x, 1), round(self.pos.y, 1)))
         elapsed_state = now - self.state_t
         if self.state in ('APPROACH', 'DESCEND', 'OBSERVE', 'OPERATOR'):
-            self.video_s += 0.1        # 候補を見つけてから GO までだけ映像を伝送する
+            self.video_s += 0.1        # 候補を見つけてからボードを発進させるまでだけ映像を伝送する
 
         if self.state == 'INIT':
             self._send(self.pos.x, self.pos.y, -self.pos.z)
@@ -365,7 +365,7 @@ class MissionNode(Node):
             if nxt is not None:
                 self._start_inspection(nxt)
             elif self._n_confirmed() >= c['persons_on_board']:
-                self._event(f'遭難者 {c["persons_on_board"]} 名全員にボートが到着。捜索を終了して帰還します')
+                self._event(f'遭難者 {c["persons_on_board"]} 名全員にボードが到着。捜索を終了して帰還します')
                 self._goto('RETURN')
             elif self.state == 'RESUME':
                 n, e = self.resume_point
@@ -416,7 +416,7 @@ class MissionNode(Node):
                 self._goto('CLIMB')
 
         elif self.state == 'OPERATOR':
-            # 現場オペレータが伝送された映像を確認して救助を決定する(ここでは一定時間後に GO)
+            # 現場オペレータが伝送された映像を見て人だと確かめ、ボードを発進させる(ここでは一定時間後に自動で発進させる)
             tg = self.current
             n, e = self._standoff(tg, c['inspect_alt'], now)
             self._fly_to(n, e, c['inspect_alt'], 3.0, yaw=self.bearing, tol=3.0)
@@ -424,14 +424,14 @@ class MissionNode(Node):
                 idle = [b for b in self.boards.values() if b['status'] == 'IDLE']
                 if not idle:
                     if self.tick % 50 == 0:
-                        self._event('待機中のボートがありません。空きを待ちます')
+                        self._event('待機中のボードがありません。空きを待ちます')
                     return self._publish_state() if self.tick % 2 == 0 else None
                 pn, pe = tg.predict(now, self.vn, self.ve)
                 b = min(idle, key=lambda b: math.hypot(b['north'] - pn, b['east'] - pe))
                 tg.board, tg.dispatch_t = b['id'], now
                 self.n_dispatched += 1
                 self._send_lora('dispatch', tg, now)
-                self._event(f'{tg.id}: オペレータが救助を決定(GO)。ボート {b["id"]} を出動')
+                self._event(f'{tg.id}: オペレータがボード {b["id"]} を発進させた')
                 self._goto('ESCORT')
 
         elif self.state == 'ESCORT':
@@ -448,7 +448,7 @@ class MissionNode(Node):
             if b and b['status'] == 'HOLD' and b['target'] == tg.id:
                 tg.arrive_t = b['t_arrive']
                 self.n_arrived += 1
-                self._event(f'{tg.id}: ボート {tg.board} が到着(出動から {tg.arrive_t - tg.dispatch_t:.0f} 秒)。'
+                self._event(f'{tg.id}: ボード {tg.board} が到着(発進から {tg.arrive_t - tg.dispatch_t:.0f} 秒)。'
                             f'浮体として待機・発光マーカー展開')
                 tg.status = 'confirmed'
                 self._goto('CLIMB')

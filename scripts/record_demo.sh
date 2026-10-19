@@ -11,6 +11,7 @@ SIZE=$(xdpyinfo -display "${DISPLAY:-:1}" | awk '/dimensions:/{print $2}')
 "$FF" -loglevel error -y -f x11grab -draw_mouse 0 -framerate 30 -video_size "$SIZE" -i "${DISPLAY:-:1}" \
   -c:v h264_nvenc -preset p5 -cq 23 -pix_fmt yuv420p "$RAW" &
 REC=$!
+date +%s.%N > "${RAW%.mp4}.start"   # 録画を始めた時刻(make_video.sh が本編を切る位置の計算に使う)
 echo "録画開始: $RAW"
 sleep 2
 "$(dirname "$0")/start_ai.sh" fullscreen:=true window_x:=0 window_y:=0 &
