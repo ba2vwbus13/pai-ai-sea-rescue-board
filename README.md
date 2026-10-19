@@ -4,7 +4,7 @@ Physical AI 応用講座1 の最終課題である(omnicampus アカウント: b
 
 - 説明資料: [docs/説明資料.pdf](docs/説明資料.pdf)
 - 解説資料: [レポート編](docs/解説資料_レポート編.pdf)(想定・工夫・結果の詳しい説明、38 ページ)、[実装編](docs/解説資料_実装編.pdf)(プログラムの中身、43 ページ)
-- デモ動画: YouTube「PAI最終課題_ba2vwbus」(2 分 50 秒。本編は 2 倍速)
+- デモ動画: [YouTube「PAI最終課題_ba2vwbus」](https://youtu.be/CmVHoU2eICE)(2 分 50 秒。本編は 2 倍速)
 
 ![デモ動画の1場面](docs/img/demo_frame.png)
 
