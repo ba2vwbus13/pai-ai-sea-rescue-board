@@ -16,17 +16,17 @@
   .subtitle { color: var(--coral); font-size: 12pt; font-weight: 700; margin-bottom: 4mm; }
   .meta { color: var(--sub); font-size: 9pt; }
   table { border-collapse: collapse; width: 100%; margin: 2mm 0 3mm; font-size: 9pt; break-inside: avoid; }
-  caption { font-size: 9pt; color: var(--sub); caption-side: top; text-align: left; padding-bottom: 1mm; }
+  caption { font-size: 9pt; color: var(--sub); caption-side: top; text-align: center; padding-bottom: 1mm; }
   th, td { border: 1px solid var(--line); padding: 1.2mm 2mm; text-align: left; vertical-align: top; }
   th { background: var(--bg); }
   td.c, th.c { text-align: center; }
   figure { margin: 3mm 0; text-align: center; break-inside: avoid; }
   figure svg { width: 100%; height: auto; }
   figure img { max-width: 100%; border: 1px solid var(--line); }
-  figcaption { font-size: 8.5pt; color: var(--sub); margin-top: 1mm; text-align: left; }
+  figcaption { font-size: 8.5pt; color: var(--sub); margin-top: 1mm; text-align: center; }
   .box { background: var(--bg); border: 1px solid var(--line); border-radius: 2mm; padding: 2.5mm 4mm; margin: 2mm 0; break-inside: avoid; }
   .note { background: var(--note); border: 1px solid #ecd9a3; border-radius: 2mm; padding: 2.5mm 4mm; margin: 2mm 0; break-inside: avoid; }
-  .formula { font-family: Menlo, monospace; background: var(--bg); padding: 2mm 4mm; border-radius: 2mm; margin: 2mm 0; }
+  .formula { font-family: Menlo, monospace; text-align: center; padding: 1mm 0; margin: 2mm 0; }
   code { font-family: Menlo, monospace; font-size: 8.5pt; background: var(--bg); padding: 0 1mm; }
   pre { font-family: Menlo, monospace; font-size: 7.8pt; background: var(--bg); padding: 2mm 3mm; border-radius: 2mm; white-space: pre-wrap; break-inside: avoid; }
   ul, ol { margin: 1mm 0; padding-left: 6mm; } li { margin: .5mm 0; }
@@ -43,41 +43,62 @@
 <h1>解説資料:AI 海難救助システム</h1>
 <div class="subtitle">実装編(プログラムの中身の解説)</div>
 <div class="meta">Physical AI 応用講座1 最終課題の付録 ／ omnicampus アカウント: ba2vwbus ／ 2026 年 10 月 ／ コード: GitHub ba2vwbus13/pai-ai-sea-rescue-board</div>
-
 <h3>この資料について</h3>
 <p>「レポート編」(1〜6 章)の続きである。ここでは、プログラムの中身を説明する。章の番号はレポート編から続けて、7 章から始める。</p>
-<p>式やコードから入らずに、<b>具体的な数字の例と図</b>を先に見せてから、最後に「コードではどこか」を示す。各章の終わりに確認問題と答えがある。行番号は GitHub に置いたコードのものである。</p>
-
+<p>式やコードから入らずに、<b>具体的な数字の例と図</b>を先に見せてから、最後に「コードではどこか」を示す。各章の終わりの「設計上の考慮点」では、部品が止まった場合の動作や、設定を変えた場合の影響などをまとめた。行番号は GitHub に置いたコードのものである。</p>
 <h3>目次</h3>
 <ol class="toc" start="7">
-  <li>全体像と ROS 2(プログラムと 3 種類の通信、ノード・トピック・メッセージ)</li>
-  <li>PX4(Micro XRCE-DDS での ROS 2 とのつなぎ方と、ドローンに「ここへ飛べ」と伝える仕組み)</li>
-  <li>YOLO(画像から人を見つける AI)</li>
-  <li>座標の計算(写真の中の位置 → 海の上の位置)</li>
-  <li>mission の状態の流れ(捜索・確認・ボードの発進・見守り)</li>
-  <li>lora_link_node(LoRa 無線のまね)</li>
-  <li>board_node(フォイルボード 3 台の動き)</li>
-  <li>評価と動画の作り方</li>
+  <li>システム構成と ROS 2</li>
+  <li>PX4 の飛行制御</li>
+  <li>YOLO による人物検出</li>
+  <li>画像座標から地上座標への変換</li>
+  <li>mission の状態遷移</li>
+  <li>LoRa 通信の模擬</li>
+  <li>フォイルボードの制御</li>
+  <li>評価と動画作成</li>
 </ol>
 <p>章は、プログラムどうしのつなぎ方(7・8 章)、目にあたる AI(9・10 章)、頭にあたる mission(11 章)、救助側の無線とボード(12・13 章)、評価(14 章)の順に並べた。データが流れる順番である。</p>
-
-<h3>用語の約束(レポート編に追加するもの)</h3>
-<table>
-  <tr><th style="width:30%">用語</th><th>この資料での意味</th></tr>
-  <tr><td>ノード</td><td>ROS 2 の中で動く 1 つのプログラム。detector・mission・board などはどれもノード</td></tr>
-  <tr><td>トピック</td><td>ノード同士がデータを流す「チャンネル」。名前は <code>/ai_patrol/detections</code> のように / で区切る</td></tr>
-  <tr><td>メッセージ</td><td>トピックに流す 1 回分のデータ。どんな項目(位置・時刻など)を持つかが、<b>メッセージの型</b>として前もって決まっている</td></tr>
-  <tr><td>仮の目標点(にんじん)</td><td>レポート編の「仮の目標点」と同じ。目的地へ向かって 0.1 秒ごとに少しずつ進む点。コードでは <code>carrot</code>(馬の前にぶら下げるにんじんから)</td></tr>
-  <tr><td>画素</td><td>写真を作っている小さな点。カメラの写真は横 1280 × 縦 960 画素</td></tr>
-  <tr><td>高さの符号</td><td>PX4 は「北・東・下」の順に数える(NED)。<b>下がプラスなので、高度 18 m は −18</b> と書く</td></tr>
-  <tr><td>ENU</td><td>Gazebo の座標の数え方。「東・北・上」の順(x = 東、y = 北)。NED とは北と東の順番と、上下の符号が逆である</td></tr>
-</table>
-
 <!-- ======================= 7章 ======================= -->
 <div class="chapter">
-<h2>7 章 全体像と ROS 2</h2>
-<h3>7.1 全体像:プログラムと 3 種類の通信</h3>
-<p>このシステムでは、プログラム同士が <b>3 種類の通信</b>でつながっている。ROS 2 のノード同士は ROS 2(DDS)で、PX4 と ROS 2 の間は Micro XRCE-DDS で、Gazebo とその外側は gz-transport でやりとりする。</p>
+<h2>7 章 システム構成と ROS 2</h2>
+<h3>7.1 ROS 2 の仕組み</h3>
+<p>このシステムのプログラムの多くは、ROS 2 の上で動いている。ROS 2 は、<b>いくつものプログラムを同時に動かし、プログラム同士でデータを受け渡しさせる仕組み</b>である。ROS 2 の上で動く 1 つのプログラムを、<b>ノード</b>という。たとえば、写真から人を見つける detector、ドローンを飛ばす mission、表示画面の dashboard は、どれもノードである。</p>
+<p>ノードは、データを渡す相手を直接呼び出さない。データは、名前を付けた<b>トピック</b>に流す。トピックの名前は、<code>/ai_patrol/detections</code> のように、/ で区切って付ける。データを流すことを publish、トピックを聞いてデータを受け取ることを subscribe という。トピックに 1 回で流すデータのまとまりを、<b>メッセージ</b>という。メッセージにどんな項目が入るかは、<b>メッセージの型</b>として前もって決めてある。送る側と聞く側が同じ型を使うので、聞く側は項目を正しく読み取れる。</p>
+<p>たとえば、detector は人を見つけると、見つけた人の北と東の位置、確信度、写真を受け取った時刻をメッセージに入れて、トピック <code>/ai_patrol/detections</code> に流す。このトピックは、mission と dashboard の 2 つのノードが聞いている。従って、detector が 1 回流すだけで、同じメッセージが 2 つのノードに届く(図 7-1)。</p>
+<p>トピックは、ラジオのチャンネルにたとえられる。送る側は「どのチャンネルに流すか」だけを決め、聞く側は「どのチャンネルを聞くか」だけを決める。このようにすることで、送る側と聞く側はお互いを知らなくてよいので、ノードを 1 つ止めたり、入れ替えたりしやすい。たとえば、ボードの動き方を変えたいときは board だけを直せばよく、detector や mission は変えなくてよい。</p>
+<figure>
+<svg viewBox="0 0 680 230">
+<defs><marker id="r1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+<rect x="20" y="80" width="130" height="56" rx="8" fill="#fff" stroke="#185FA5" stroke-width="1.5"/>
+<text class="th" x="85" y="104" text-anchor="middle">detector</text><text class="ts" x="85" y="124" text-anchor="middle">ノード</text>
+<rect x="230" y="88" width="210" height="40" rx="20" fill="#E6F1FB" stroke="#185FA5" stroke-width="1.5"/>
+<text class="ts" x="335" y="113" text-anchor="middle">/ai_patrol/detections</text>
+<text class="ts" x="335" y="78" text-anchor="middle" fill="#185FA5">トピック</text>
+<rect x="520" y="30" width="140" height="56" rx="8" fill="#fff" stroke="#185FA5" stroke-width="1.5"/>
+<text class="th" x="590" y="54" text-anchor="middle">mission</text><text class="ts" x="590" y="74" text-anchor="middle">ノード</text>
+<rect x="520" y="130" width="140" height="56" rx="8" fill="#fff" stroke="#185FA5" stroke-width="1.5"/>
+<text class="th" x="590" y="154" text-anchor="middle">dashboard</text><text class="ts" x="590" y="174" text-anchor="middle">ノード</text>
+<g stroke="#185FA5" stroke-width="1.6" fill="none">
+<line x1="150" y1="108" x2="226" y2="108" marker-end="url(#r1)"/>
+<path d="M440 100 L480 100 L480 58 L516 58" marker-end="url(#r1)"/>
+<path d="M440 116 L480 116 L480 158 L516 158" marker-end="url(#r1)"/>
+</g>
+<text class="ts" x="188" y="98" text-anchor="middle">publish</text>
+<text class="ts" x="498" y="200" text-anchor="middle">subscribe</text>
+<rect x="150" y="160" width="290" height="58" rx="6" fill="#FFF8E6" stroke="#d4a72c"/>
+<text class="ts" x="162" y="180">メッセージの例</text>
+<text class="ts" x="162" y="200">北 −134.0 m・東 −31.2 m・確信度 0.81・時刻</text>
+<line x1="295" y1="160" x2="295" y2="130" stroke="#d4a72c" stroke-dasharray="3 3"/>
+</svg>
+<figcaption>図 7-1 トピックによるメッセージの受け渡し</figcaption>
+</figure>
+
+<h3>7.2 プログラム間の通信方式</h3>
+<h4>3 種類の通信</h4>
+<p>このシステムのプログラムは、Gazebo、PX4、今回作った ROS 2 のノードの 3 つのグループに分かれる。Gazebo は海・ドローン・ボード・遭難者を動かすシミュレータで、PX4 はドローンの飛行を制御するソフトである。3 つのグループは別々の開発者が作ったものなので、データの送り方も別々である。従って、このシステムでは、<b>3 種類の通信</b>を使い分けている。それぞれの通信が何と何をつなぎ、何に使われるかを、表 7-1 にまとめる。</p>
+<p>図 7-2 は、3 種類の通信でつながったプログラムの全体図である。青い実線が ROS 2(DDS)、紫の点線が Micro XRCE-DDS、橙の実線が gz-transport である。青い点線の枠の中が ROS 2 のノードであり、枠の外の Gazebo と PX4 は、橙と紫の線でつながる。PX4 は ROS 2 のノードではないので、MicroXRCEAgent が PX4 の代わりに ROS 2 のトピックを流したり聞いたりする。</p>
+<p>図の矢印をカメラの画像から順にたどると、データの流れがわかる。Gazebo のカメラの画像は、橙の線で image_bridge に渡り、青い線で detector に届く。detector が見つけた遭難者の位置は mission に届き、mission は人の座標を lora_link を通して board に送る。board はボードの動きを計算し、橙の線で Gazebo の中のボードを動かす。一方、mission が決めた飛ぶ先は、青い線で MicroXRCEAgent に渡り、紫の線で PX4 に届く。PX4 はモーターの回転数を計算し、橙の線で Gazebo のドローンを動かす。</p>
+<p>ROS 2 の通信には、<b>DDS</b>(Data Distribution Service)という規格を使う。ノードは起動すると、同じネットワークにいる相手を自動で探し、同じトピック名・同じ型のノードどうしを直接つなぐ。7.1 節で説明したトピックの受け渡しは、この仕組みで実現している。</p>
 <figure>
 <svg viewBox="0 -16 720 496">
 <defs>
@@ -159,22 +180,18 @@
 <line x1="12" y1="70" x2="52" y2="70" stroke="#e8590c" stroke-width="2"/><text class="ts" x="60" y="74">gz-transport</text>
 </g>
 </svg>
-<figcaption>図 7-1 プログラム同士の通信の全体図。青い点線の枠の中が ROS 2 の世界で、ノード同士はトピックでつながる。PX4 は ROS 2 のノードではなく、Micro XRCE-DDS(紫)を通して ROS 2 とやりとりする。Gazebo とのやりとりは gz-transport(橙)で行う</figcaption>
+<figcaption>図 7-2 プログラム同士の通信の全体図</figcaption>
 </figure>
 <table>
   <caption>表 7-1 3 種類の通信</caption>
   <tr><th style="width:17%">通信</th><th style="width:30%">何と何をつなぐか</th><th>このシステムでの例</th></tr>
   <tr><td>ROS 2(DDS)</td><td>ROS 2 のノード同士。同じ PC の中でも、別の PC の間でも使える</td><td>detector → mission の検出結果、mission → lora_link → board の座標、board → mission のボードの状態</td></tr>
   <tr><td>Micro XRCE-DDS</td><td>PX4 と ROS 2。PX4 の中の通信(uORB)を、ROS 2 のトピックに出し入れする</td><td>mission → PX4 の仮の目標点、PX4 → detector・mission の位置と姿勢(8.1 節)</td></tr>
-  <tr><td>gz-transport</td><td>Gazebo と、その外のプログラム。Gazebo 専用の通信</td><td>PX4 の gz_bridge が受け取るセンサーの値と、送るモーターの回転数。カメラ画像(image_bridge が ROS 2 に流し直す)。board がボードを置き直す。truth_logger が本当の位置を聞く</td></tr>
-</table><p><b>Gazebo と ROS 2 の間のデータは、gz-transport と ROS 2(DDS)の両方の通信を使えるプログラムが受け渡す</b>(図 7-2)。Gazebo の中のデータは gz-transport で流れ、ROS 2 のノードの間のデータは DDS で流れる。間に入るプログラムは、片方の通信で受け取ったデータを、もう片方の通信で送り出す。</p>
-<ul>
-  <li>カメラ画像は、image_bridge が Gazebo から gz-transport で受け取り、ROS 2 のトピック <code>/world/…/image</code> として送り出す。detector は、このトピックから画像を受け取る。</li>
-  <li>ボードの位置は、board が決める。board は、ROS 2 のトピック <code>/rescue/lora/rx</code> で遭難者の座標を受け取り、ボードの動きを計算して、gz-transport の <code>set_pose</code> で Gazebo のボードを動かす。</li>
-  <li>ドローンの飛行では、PX4 が 2 つの相手とやりとりする。Gazebo とは、gz-transport(gz_bridge)で、センサーの値とモーターの回転数をやりとりする。ROS 2 とは、Micro XRCE-DDS で MicroXRCEAgent を通して、機体の位置や飛行の指令のトピックをやりとりする。</li>
-  <li>遭難者とボードの本当の位置は、truth_logger が Gazebo から gz-transport で受け取り、評価用のファイルに書き出す。</li>
-</ul>
-
+  <tr><td>gz-transport</td><td>Gazebo と、その外のプログラム。Gazebo 専用の通信</td><td>PX4 の gz_bridge が受け取るセンサーの値と、送るモーターの回転数。カメラ画像(image_bridge が ROS 2 に流し直す)。board がボードを置き直す。truth_logger が正解位置を聞く</td></tr>
+</table>
+<h4>Gazebo と ROS 2 の間の受け渡し</h4>
+<p>Gazebo の中のデータは gz-transport で流れ、ROS 2 のノードの間のデータは DDS で流れる。従って、Gazebo と ROS 2 の間では、両方の通信を使えるプログラムが、片方で受け取ったデータをもう片方で送り出す。図 7-3 では、箱の左右に付けた色付きの四角で、そのプログラムが使う通信を表した。橙は gz-transport、青は ROS 2、紫は Micro XRCE-DDS である。</p>
+<p>この受け渡しをするのは、image_bridge と board である。image_bridge は、Gazebo のカメラ画像を ROS 2 のトピックに流し直す。board は、ROS 2 で受け取った遭難者の座標からボードの動きを計算し、Gazebo の中のボードを動かす。PX4 は、Gazebo とはセンサーの値とモーターの回転数をやりとりし、ROS 2 とは MicroXRCEAgent を通してやりとりする。PX4 と Gazebo の間は ROS 2 を通らないので、実機では、ここが本物のセンサーとモーターに置き換わる。truth_logger は、Gazebo から正解位置を受け取り、評価用のファイルに書くだけである。これら 4 つのプログラムが使う通信と、受け渡すものを、表 7-2 にまとめる。</p>
 <figure>
 <svg viewBox="0 0 680 430">
 <defs><marker id="bw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -209,38 +226,29 @@
 <text class="ts" x="190" y="261" text-anchor="middle">センサー</text><text class="ts" x="190" y="299" text-anchor="middle">モーター</text>
 <text class="ts" x="528" y="261">/fmu/out/…</text><text class="ts" x="528" y="299">/fmu/in/…</text>
 <text class="ts" x="282" y="315" text-anchor="middle">gz_bridge</text><text class="ts" x="350" y="315" text-anchor="middle" fill="#7F77DD">UDP</text>
-<rect x="230" y="331" width="220" height="48" rx="8" fill="#fff" stroke="#57606a" stroke-dasharray="4 3"/><text class="th" x="340" y="353" text-anchor="middle">truth_logger</text><text class="ts" x="340" y="371" text-anchor="middle">本当の位置を記録(評価専用)</text>
+<rect x="230" y="331" width="220" height="48" rx="8" fill="#fff" stroke="#57606a" stroke-dasharray="4 3"/><text class="th" x="340" y="353" text-anchor="middle">truth_logger</text><text class="ts" x="340" y="371" text-anchor="middle">正解位置を記録(評価専用)</text>
 <rect x="223" y="348" width="14" height="14" rx="2" fill="#e8590c"/>
 <line x1="160" y1="355" x2="220" y2="355" stroke="#e8590c" stroke-width="2" marker-end="url(#bw)"/>
-<text class="ts" x="190" y="345" text-anchor="middle">本当の位置</text>
+<text class="ts" x="190" y="345" text-anchor="middle">正解位置</text>
 <line x1="452" y1="355" x2="462" y2="355" stroke="#57606a" stroke-width="1.5" marker-end="url(#bw)"/><rect x="464" y="337" width="52" height="36" rx="3" fill="#fff" stroke="#57606a"/><text x="490" y="352" text-anchor="middle" style="font: 10px 'Hiragino Sans', sans-serif; fill:#57606a">評価用の</text><text x="490" y="366" text-anchor="middle" style="font: 10px 'Hiragino Sans', sans-serif; fill:#57606a">ファイル</text>
 <g transform="translate(176,404)"><rect x="0" y="0" width="14" height="14" rx="2" fill="#e8590c"/><text class="ts" x="20" y="12">gz-transport</text><rect x="143" y="0" width="14" height="14" rx="2" fill="#185FA5"/><text class="ts" x="163" y="12">ROS 2(DDS)</text><rect x="285" y="0" width="14" height="14" rx="2" fill="#7F77DD"/><text class="ts" x="305" y="12">Micro XRCE-DDS</text></g>
 </svg>
-<figcaption>図 7-2 Gazebo と ROS 2 の間の受け渡し。箱の左右の色付きの四角は、そのプログラムが使う通信を表す(橙:gz-transport、青:ROS 2、紫:Micro XRCE-DDS)。image_bridge と board は橙と青の両方を使い、Gazebo と ROS 2 の間でデータを受け渡す。PX4 は橙で Gazebo と、紫で MicroXRCEAgent とつながり、MicroXRCEAgent が青で ROS 2 とつながる。truth_logger は橙で受け取った本当の位置をファイルに書く</figcaption>
+<figcaption>図 7-3 Gazebo と ROS 2 の間の受け渡し</figcaption>
 </figure>
 <table>
-  <caption>表 7-2 Gazebo と ROS 2 の間に入るプログラムと、使う通信</caption>
+  <caption>表 7-2 Gazebo と ROS 2 の間に入るプログラム</caption>
   <tr><th style="width:18%">プログラム</th><th style="width:22%">Gazebo との通信</th><th style="width:24%">ROS 2 との通信</th><th>受け渡すもの</th></tr>
   <tr><td>image_bridge</td><td>gz-transport</td><td>DDS</td><td>カメラ画像を、Gazebo から ROS 2 へ。変換だけをする既製のノード(ros_gz パッケージ)</td></tr>
   <tr><td>board</td><td>gz-transport</td><td>DDS</td><td>ROS 2 で受け取った座標から計算したボードの位置を、Gazebo へ。1 つのプログラムの中で 2 つの通信のライブラリを使う</td></tr>
   <tr><td>PX4</td><td>gz-transport(gz_bridge)</td><td>Micro XRCE-DDS → MicroXRCEAgent → DDS</td><td>Gazebo とはセンサーの値とモーターの回転数。ROS 2 とは機体の位置・姿勢と、飛行の指令</td></tr>
-  <tr><td>truth_logger</td><td>gz-transport</td><td>(使わない。記録はファイルへ)</td><td>遭難者とボードの本当の位置を、評価用のファイル truth_*.jsonl へ</td></tr>
+  <tr><td>truth_logger</td><td>gz-transport</td><td>(使わない。記録はファイルへ)</td><td>遭難者とボードの正解位置を、評価用のファイル truth_*.jsonl へ</td></tr>
 </table>
-
-<p><b>DDS</b>(Data Distribution Service)は、ROS 2 が中で使っている通信の規格である。ノードは起動すると、同じネットワークにいる相手を自動で探し(ディスカバリ)、同じトピック名・同じ型のノードどうしを直接つなぐ。7.2 節の「ラジオのチャンネル」は、DDS がこの仕組みで実現している。</p>
-<p>PX4 と Gazebo の間は ROS 2 を通らない。PX4 の gz_bridge が Gazebo から加速度・角速度・GPS などのセンサーの値を受け取り、計算したモーターの回転数を Gazebo へ返す。実機なら、ここが本物のセンサーとモーターになる。</p>
-
-
-
-<h3>7.2 ノード・トピック・メッセージ</h3>
-<p>ROS 2 は、<b>いくつものプログラム(ノード)を同時に動かし、データを受け渡しさせる仕組み</b>である。ノードは、相手を直接呼び出さない。決まった名前のトピックにメッセージを「流す」(publish)だけで、そのトピックを「聞いている」(subscribe)ノードに届く。</p>
-<p>たとえると、トピックはラジオのチャンネルである。送る側は「どのチャンネルに流すか」だけを決める。聞く側は「どのチャンネルを聞くか」だけを決める。お互いが相手を知らなくてもよいので、ノードを 1 つ止めたり、入れ替えたりしやすい。たとえば、ボードの動き方を変えたいときは board だけを直せばよく、detector や mission は変えなくてよい。</p>
-
-
-
 <h3>7.3 トピック一覧</h3>
+<p>このシステムで使っているトピックを、表 7-3 に一覧にする。この表は、各ノードのコードにある <code>create_publisher</code> と <code>create_subscription</code> から集めたものである。</p>
+<p><code>in</code> は「PX4 へ入る」、<code>out</code> は「PX4 から出る」という意味である。PX4 のバージョンによって名前の後ろに <code>_v1</code> などが付くので、コードでは両方の名前を聞いている。</p>
+<p>String(JSON) は、「文字列 1 本」だけを持つ一番簡単なメッセージの型に、JSON という書き方で複数の値を詰めたものである。自分たちで新しいメッセージの型を作らずに済むので、こうした。</p>
 <table>
-  <caption>表 7-3 海難救助システムで使っているトピック(<code>create_publisher</code> / <code>create_subscription</code> から集めたもの)</caption>
+  <caption>表 7-3 海難救助システムで使っているトピック</caption>
   <tr><th style="width:30%">トピック</th><th style="width:16%">メッセージの型</th><th style="width:12%">流す</th><th style="width:14%">聞く</th><th>中身</th></tr>
   <tr><td><code>/world/sea_board/…/camera/image</code></td><td>Image</td><td>image_bridge</td><td>detector</td><td>カメラ画像(1280 × 960)</td></tr>
   <tr><td><code>/fmu/out/vehicle_attitude</code></td><td>VehicleAttitude</td><td>PX4</td><td>detector</td><td>機体の傾きと向き</td></tr>
@@ -258,10 +266,7 @@
   <tr><td><code>/rescue/boards</code></td><td>String(JSON)</td><td>board</td><td>mission, dashboard</td><td>ボード 3 台の位置・速さ・状態(到着したか)</td></tr>
   <tr><td><code>/ai_patrol/dashboard</code></td><td>Image</td><td>dashboard</td><td>(録画用)</td><td>表示画面の画像</td></tr>
 </table>
-<p><code>in</code> は「PX4 へ入る」、<code>out</code> は「PX4 から出る」という意味である。PX4 のバージョンによって名前の後ろに <code>_v1</code> などが付くので、コードでは両方の名前を聞いている。</p>
-<p>String(JSON) は、「文字列 1 本」だけを持つ一番簡単なメッセージの型に、JSON という書き方で複数の値を詰めたものである。自分たちで新しいメッセージの型を作らずに済むので、こうした。</p>
-
-<h3>7.4 コードの読み方</h3>
+<h3>7.4 ノードの基本構造</h3>
 <p>どのノードも、同じ形で書かれている。detector を例にする(<code>detector_node.py</code>)。</p>
 <pre>class DetectorNode(Node):
     def __init__(self):                       # ① 起動したときに 1 回だけ実行
@@ -290,11 +295,10 @@ rclpy.spin(node)                              # ④ 届くのを待ち続ける(
 <p>そのため、計算で出てくるのは<b>「写真を受け取った瞬間に人がいた場所」</b>と、その時刻の組である。推論が終わるのは、写真を受け取ってから最大で 1 秒あまりあとになる。それでよい理由は次のとおりである。</p>
 <ul>
   <li>写真に写っているのは、受け取った瞬間の人である。だから、<b>同じ瞬間</b>の機体の姿勢・位置と組み合わせないと、正しい場所にならない。</li>
-  <li>もし推論が終わったときの機体の位置を使うと、捜索中は 1 秒で 7 m 進んでいるので、人の位置も約 7 m ずれる。</li>
+  <li>もし推論が終わったときの機体の位置を使うと、捜索中は 1 秒で 7 m 進んでいるので、遭難者の位置も約 7 m ずれる。</li>
   <li>人がその後に流れた分は、mission が予測位置の式(レポート編 3.5 節)で、時刻に合わせて足す。そのために、時刻も写真を受け取った瞬間のもの(<code>t_img</code>、136 行目)を付けている。</li>
 </ul>
-<div class="note"><b>直した点がある。</b>以前は、時刻に推論が<b>終わった</b>時刻(<code>time.time()</code>)を付けていた。すると、mission は遅れた分(最大 1 秒あまり)だけ、流れた量を少なく見積もる。海流 0.25 m/秒なら最大 0.25 m あまりのずれである。録画し直す前に、写真を受け取った時刻を付けるように直した(102 行目で保存、136 行目で使う)。</div>
-
+<p>この時刻の付け方は、録画し直す前に直した。以前は、時刻に推論が<b>終わった</b>時刻(<code>time.time()</code>)を付けていた。すると、mission は遅れた分(最大 1 秒あまり)だけ、流れた量を少なく見積もる。海流 0.25 m/秒なら最大 0.25 m あまりのずれである。録画し直す前に、写真を受け取った時刻を付けるように直した(102 行目で保存、136 行目で使う)。</p>
 <h3>7.5 パラメータ</h3>
 <p>高度や確信度のしきい値など、あとで変えたくなる数字は、コードに直接書かずに<b>パラメータ</b>にしている。値は <code>config/params.yaml</code> に書く。</p>
 <pre>ai_detector:                    ← ノードの名前
@@ -308,9 +312,9 @@ lora_link:
 <p>コードの側では、まず <code>declare_parameter('conf_threshold', 0.30)</code> で「この名前のパラメータを使う。書いてなければ 0.30」と宣言する。そのあと値を読み出す。detector では、読み出しを短く書くために、次の 1 行を使っている。</p>
 <pre>p = lambda n: self.get_parameter(n).value      # p('hfov') と書けば、hfov の値が出てくる</pre>
 <p><code>lambda</code> は「名前のない小さな関数」を作る書き方である。<code>self.get_parameter('hfov').value</code> と毎回書く代わりに、<code>p('hfov')</code> と書けるようにしている。mission と board は、パラメータを <code>dict(…)</code> にまとめて宣言し、<code>self.cfg</code> や <code>self.p</code> に入れて使っている。</p>
-
-<h3>7.6 launch(まとめて起動)</h3>
+<h3>7.6 launch による一括起動</h3>
 <p>ノードを 1 つずつ起動するのは手間なので、<code>launch/ai_patrol.launch.py</code> で 6 つをまとめて起動する。<code>start_ai.sh</code> がこれを呼ぶ。<code>start_ai.sh</code> は、その前に評価用の truth_logger も起動する。</p>
+<p>launch で起動するノードと、launch がそれぞれのノードに渡しているものを、表 7-4 に示す。</p>
 <table>
   <caption>表 7-4 launch で起動するノード</caption>
   <tr><th style="width:20%">ノード</th><th>渡しているもの</th></tr>
@@ -321,32 +325,22 @@ lora_link:
   <tr><td>lora_link</td><td>params.yaml</td></tr>
   <tr><td>dashboard</td><td>記録の保存先、全画面にするか、画面の位置</td></tr>
 </table>
+<h3>7.7 設計上の考慮点</h3>
+<h4>lora_link が止まった場合の動作</h4>
+<p>lora_link が止まると、トピック <code>/rescue/lora/rx</code> に何も流れなくなる。従って、ボードは発進の合図を受け取れず、砂浜で待ったままになる。ただし、mission と detector は動き続けるので、ドローンは見守りを続ける。</p>
+<h4>画像の受け取りと推論を分ける理由</h4>
+<p>画像は 1 秒に何回も届くが、推論は 1 回に約 0.2 秒かかり、AI 以外の処理も合わせると 1 秒に 1 回が限度である。従って、<code>_on_image</code> の中では推論せず、届いた画像を取っておくだけにした。推論は、1 秒ごとに、その時点で一番新しい画像に対してだけ行う。</p>
+<h4>detector が付ける時刻</h4>
+<p>detector は、検出結果に、写真を受け取った時刻を付ける。もし推論が終わった時刻を付けると、人がその位置にいた時刻が、実際より遅く記録される。mission は「その時刻から今まで」に流れた分を足すので、足す分が少なくなり、予測位置が人の後ろ、つまり上流側へずれる。</p>
 
-
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>lora_link を止めると、ボードはどうなるか。</li>
-  <li><code>_on_image</code> の中で推論しないのはなぜか。</li>
-  <li>detector が付ける時刻を「推論が終わった時刻」にすると、何がずれるか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>/rescue/lora/rx に何も流れなくなるので、ボードは発進の合図を受け取れず、砂浜で待ったままになる。mission と detector は動き続けるので、ドローンは見守りを続ける。</li>
-  <li>画像は 1 秒に何回も届くが、推論は 1 回に約 0.2 秒かかり、AI 以外の処理も合わせると 1 秒に 1 回が限度だからである。届いたときは「取っておく」だけにして、1 秒ごとに一番新しい画像だけを推論する。</li>
-  <li>人がその位置にいた時刻が、実際より遅く記録される。mission は「その時刻から今まで」に流れた分を足すので、足す分が少なくなり、予測位置が人の後ろ(上流側)へずれる。</li>
-</ol>
-</div>
 </div>
 <!-- ======================= 8章 ======================= -->
 <div class="chapter">
-<h2>8 章 PX4</h2>
-
-<h3>8.1 PX4 と ROS 2 をつなぐ:Micro XRCE-DDS</h3>
-<p>PX4 は ROS 2 のノードではない。PX4 の中のプログラムどうしは、<b>uORB</b> という PX4 専用の通信でデータを受け渡している。たとえば、位置を推定するプログラムは、推定した位置を uORB の <code>vehicle_local_position</code> に流し、飛行制御のプログラムがそれを聞く。</p>
+<h2>8 章 PX4 の飛行制御</h2>
+<h3>8.1 Micro XRCE-DDS による PX4 と ROS 2 の接続</h3>
+<p>PX4 は ROS 2 のノードではない。PX4 の中のプログラムどうしは、<b>uORB</b> という PX4 専用の通信でデータを受け渡している。たとえば、ドローンの位置を推定するプログラムは、推定したドローンの位置を uORB の <code>vehicle_local_position</code> に流し、飛行制御のプログラムがそれを聞く。</p>
 <p>この uORB のデータを ROS 2 のトピックに出し、ROS 2 からの指令を uORB に入れるのが <b>Micro XRCE-DDS</b> である。XRCE は eXtremely Resource Constrained Environments(資源がとても限られた環境)の略である。</p>
-
-<h4>なぜ PX4 は直接 DDS を話さないのか</h4>
+<h4>クライアントとエージェントの分担</h4>
 <p>本物のドローンでは、PX4 はフライトコントローラという小さなマイコンの上で動く。メモリは数百 KB〜数 MB しかない。DDS は、相手を自動で探す仕組みや、届け方の細かい約束を持つ大きな仕組みなので、マイコンには重すぎる。</p>
 <p>そこで、仕事を 2 つに分ける。</p>
 <ul>
@@ -358,6 +352,7 @@ lora_link:
   </ul>
   ROS 2 のトピックを流したり聞いたりできるのは、DDS に参加しているプログラムだけである。PX4 は DDS に参加できないので、エージェントが PX4 の窓口として参加する。mission から見ると、エージェントが流すトピックは PX4 自身が流しているのと区別がつかない。</li>
 </ul>
+<p>図 8-1 は、データが PX4 から mission まで、どの区間をどの方法で運ばれるかを示したものである。PX4 の中では、uORB で運ばれる。PX4 とエージェントの間は UDP で運ばれ、実機ではシリアルか Ethernet に変わる。エージェントから先は、ROS 2(DDS)で運ばれる。</p>
 <figure>
 <svg viewBox="0 0 680 300">
 <defs><marker id="x1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -388,12 +383,12 @@ lora_link:
 <text class="ts" x="512" y="122" text-anchor="end">/fmu/out/vehicle_status_v4 など</text>
 <text class="ts" x="524" y="166" text-anchor="end">/fmu/out/vehicle_attitude など</text>
 </svg>
-<figcaption>図 8-1 Micro XRCE-DDS の仕組み。PX4 の中では uORB、PX4 とエージェントの間は UDP(実機ではシリアルや Ethernet)、エージェントから先は ROS 2(DDS)で運ばれる</figcaption>
+<figcaption>図 8-1 Micro XRCE-DDS の仕組み</figcaption>
 </figure>
-
-<h4>1 つのメッセージがたどる道</h4>
+<h4>メッセージの経路</h4>
+<p>1 つのメッセージが、どの順番で受け渡されるかを、表 8-1 に示す。左の列は、ドローンの位置が PX4 から mission に届くまでである。右の列は、仮の目標点が mission から PX4 に届くまでである。</p>
 <table>
-  <caption>表 8-1 位置が PX4 から mission に届くまでと、仮の目標点が mission から PX4 に届くまで</caption>
+  <caption>表 8-1 ドローンの位置と仮の目標点がたどる道</caption>
   <tr><th style="width:6%">#</th><th style="width:47%">PX4 → mission(位置)</th><th>mission → PX4(仮の目標点)</th></tr>
   <tr><td class="c">1</td><td>位置の推定が、uORB の <code>vehicle_local_position</code> に流す</td><td>mission が <code>TrajectorySetpoint</code> を作り、<code>/fmu/in/trajectory_setpoint</code> に publish する</td></tr>
   <tr><td class="c">2</td><td>uxrce_dds_client が uORB から読み、1 秒に 50 回までに間引いて送る</td><td>エージェントが DDS から受け取り、UDP でクライアントへ送る</td></tr>
@@ -401,41 +396,63 @@ lora_link:
   <tr><td class="c">4</td><td>エージェントが <code>/fmu/out/vehicle_local_position_v1</code> として DDS に publish する</td><td>PX4 の Offboard モードのプログラムが uORB から読み、飛行制御に渡す</td></tr>
   <tr><td class="c">5</td><td>mission の <code>_on_pos</code> が呼ばれる</td><td>機体が仮の目標点へ向かって動く</td></tr>
 </table>
-
-<h4>このシステムでの設定</h4>
+<h4>設定</h4>
+<p>このシステムで、Micro XRCE-DDS をどう設定しているかを、表 8-2 にまとめる。</p>
 <table>
   <caption>表 8-2 Micro XRCE-DDS まわりの設定</caption>
   <tr><th style="width:24%">項目</th><th>中身</th></tr>
   <tr><td>クライアントの起動</td><td>PX4 の起動スクリプト(<code>ROMFS/px4fmu_common/init.d-posix/rcS</code>)の <code>uxrce_dds_client start -t udp -p 8888</code>。PX4 を起動すると自動で動く</td></tr>
   <tr><td>エージェントの起動</td><td><code>start_ai.sh</code> の <code>MicroXRCEAgent udp4 -p 8888</code>。まだ動いていなければ起動する。止めるのは <code>stop_all.sh</code></td></tr>
   <tr><td>どのトピックを出し入れするか</td><td>PX4 の <code>src/modules/uxrce_dds_client/dds_topics.yaml</code> に書いてある 70 トピックだけ。PX4 の中の uORB のトピックは数百あるが、全部は出さない</td></tr>
-  <tr><td>送る頻度の上限</td><td>同じファイルの <code>rate_limit</code>。姿勢と位置は 1 秒に 50 回、状態(vehicle_status)は 5 回まで。mission は 0.1 秒ごとに動くので、位置は十分に新しい</td></tr>
+  <tr><td>送る頻度の上限</td><td>同じファイルの <code>rate_limit</code>。ドローンの姿勢と位置は 1 秒に 50 回、状態(vehicle_status)は 5 回まで。mission は 0.1 秒ごとに動くので、ドローンの位置は十分に新しい</td></tr>
   <tr><td>メッセージの型</td><td>ROS 2 側は <code>px4_msgs</code> パッケージの型を使う。中身は PX4 の <code>msg/*.msg</code> と同じで、<b>PX4 と同じ版のものをビルドしておく必要がある</b>。版がずれると、項目の並びが合わずに正しく読めない</td></tr>
   <tr><td>名前の後ろの <code>_v1</code>・<code>_v4</code></td><td>新しい PX4 では、型を変えたメッセージに版の番号が付く。この PX4 では VehicleStatus が 4 版、VehicleLocalPosition が 1 版なので、トピック名は <code>/fmu/out/vehicle_status_v4</code>、<code>/fmu/out/vehicle_local_position_v1</code> になる。版 0 の型(VehicleAttitude、VehicleCommand、TrajectorySetpoint など)には付かない。コードでは、版が付く名前と付かない名前の両方を聞いている</td></tr>
   <tr><td>届け方の約束(QoS)</td><td>PX4 側は「送り直さない(BEST_EFFORT)・最新の 1 つだけ(KEEP_LAST 1)」で流す。聞く側の約束が「必ず届ける(RELIABLE)」だと、DDS は相性が合わないとしてつながない。そのため、mission と detector の QoS をそろえている(7.4 節)</td></tr>
   <tr><td>時刻</td><td>PX4 のメッセージの <code>timestamp</code> は、マイクロ秒の整数である。クライアントには、エージェントと時刻を合わせる仕組みがある。mission は ROS 2 の時計からマイクロ秒を作って入れている(<code>_now_us</code>、219 行目)</td></tr>
 </table>
-
-<div class="note"><b>座標の向きには注意が必要である。</b>PX4 のトピックの位置は NED(北・東・下)である。ROS 2 の多くのパッケージと Gazebo は ENU(東・北・上)を使う。Micro XRCE-DDS は数を運ぶだけで、向きは直さない。このシステムでは、mission と detector は NED のまま計算し、Gazebo とやりとりする board と truth_logger だけが ENU と NED を変換している(13.5 節、14.1 節)。</div>
-
-<h4>実機ではどうなるか</h4>
+<h4>座標系 NED と ENU</h4>
+<p>位置は、3 つの数で表す。PX4 と Gazebo では、この 3 つの数の並べ方と、高さの向きがちがう。PX4 は「北・東・下」の順に並べ、下をプラスに数える。この数え方を <b>NED</b> という。Gazebo は「東・北・上」の順に並べ、上をプラスに数える。この数え方を <b>ENU</b> という。</p>
+<p>たとえば、ドローンが離陸地点から南へ 140 m・西へ 47 m の所の上空、高度 18 m にいるとする。北と東をプラスとするので、この位置は北 −140 m・東 −47 m である。PX4 はこの位置を (−140, −47, −18) と書き、Gazebo は (−47, −140, 18) と書く。同じ場所なのに、1 番目と 2 番目の数が入れ替わり、高さの符号が逆になる(図 8-2)。</p>
+<p>Micro XRCE-DDS は、数をそのまま運ぶだけで、並べ替えない。従って、このシステムでは、mission と detector は PX4 と同じ NED のまま計算し、Gazebo とやりとりする board と truth_logger だけが、NED と ENU を変換している(13.5 節、14.1 節)。このようにすることで、変換を書く場所は 2 つのプログラムだけで済む。ただし、変換を忘れると北と東が入れ替わるので、ボードは北 −47 m・東 −140 m という、まったく別の場所に置かれてしまう。高さの符号は、8.3 節で PX4 に高度を送るときにも出てくる。</p>
+<figure>
+<svg viewBox="0 0 680 270">
+<defs><marker id="ne1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
+<text class="th" x="150" y="18" text-anchor="middle">上から見た図</text>
+<rect x="20" y="28" width="260" height="34" fill="#F3E9D2"/><text class="ts" x="30" y="50">砂浜</text>
+<rect x="20" y="62" width="260" height="190" fill="#E6F1FB"/><text class="ts" x="30" y="244">海</text>
+<g stroke="#57606a" stroke-width="1.4" fill="none"><line x1="230" y1="52" x2="230" y2="30" marker-end="url(#ne1)"/><line x1="230" y1="52" x2="272" y2="52" marker-end="url(#ne1)"/></g>
+<text class="ts" x="236" y="36">北 +</text><text class="ts" x="250" y="66">東 +</text>
+<circle cx="230" cy="52" r="5" fill="#0F6E56"/><text class="ts" x="222" y="76" text-anchor="end">離陸地点(原点)</text>
+<g stroke="#e8590c" stroke-width="1.4" stroke-dasharray="5 3" fill="none"><line x1="230" y1="52" x2="230" y2="212"/><line x1="230" y1="212" x2="176" y2="212"/></g>
+<text class="ts" x="236" y="140" fill="#e8590c">南へ 140 m</text><text class="ts" x="203" y="232" text-anchor="middle" fill="#e8590c">西へ 47 m</text>
+<rect x="166" y="202" width="20" height="20" rx="3" fill="#fff" stroke="#185FA5" stroke-width="2"/><text class="ts" x="160" y="200" text-anchor="end">ドローン</text>
+<text class="th" x="370" y="18" text-anchor="middle">横から見た図</text>
+<line x1="320" y1="200" x2="420" y2="200" stroke="#185FA5" stroke-width="2"/><text class="ts" x="324" y="216">海面</text>
+<rect x="360" y="88" width="20" height="14" rx="3" fill="#fff" stroke="#185FA5" stroke-width="2"/>
+<line x1="370" y1="104" x2="370" y2="198" stroke="#57606a" stroke-dasharray="3 3"/><text class="ts" x="376" y="155">18 m</text>
+<g stroke-width="1.6" fill="none"><line x1="336" y1="140" x2="336" y2="66" stroke="#534AB7" marker-end="url(#ne1)"/><line x1="404" y1="140" x2="404" y2="236" stroke="#0F6E56" marker-end="url(#ne1)"/></g>
+<text class="ts" x="330" y="60" fill="#534AB7">ENU:上が +</text><text class="ts" x="398" y="252" fill="#0F6E56">NED:下が +</text>
+<rect x="452" y="44" width="216" height="86" rx="8" fill="#E1F5EE" stroke="#0F6E56"/>
+<text class="th" x="464" y="66">PX4 の書き方(NED)</text>
+<text class="ts" x="464" y="88">並び:北・東・下</text>
+<text class="th" x="464" y="116" fill="#0F6E56">(−140, −47, −18)</text>
+<rect x="452" y="146" width="216" height="86" rx="8" fill="#EEEDFE" stroke="#534AB7"/>
+<text class="th" x="464" y="168">Gazebo の書き方(ENU)</text>
+<text class="ts" x="464" y="190">並び:東・北・上</text>
+<text class="th" x="464" y="218" fill="#534AB7">(−47, −140, 18)</text>
+</svg>
+<figcaption>図 8-2 PX4 と Gazebo での同じ位置の書き方</figcaption>
+</figure>
+<h4>実機での接続</h4>
 <p>シミュレーションでは、PX4 もエージェントも同じ PC で動くので、UDP でつないでいる。実機では、フライトコントローラと機上コンピュータ(Jetson など)を、シリアル(UART)か Ethernet でつなぐ。エージェントを機上コンピュータで動かせば、mission や detector のコードはそのまま使える。ROS 2 の側から見ると、トピックの名前も型も変わらないからである。</p>
+<h4>MicroXRCEAgent が止まった場合の動作</h4>
+<p>MicroXRCEAgent が止まると、mission が送る仮の目標点と「外から操縦するよ」の合図が、PX4 に届かなくなる。PX4 は約 1 秒でこれに気づき、その場で止まる、着陸するなどの安全な動きに切り替える。同時に、ドローンの位置も mission に届かなくなる。</p>
+<h4>PX4 の版を上げるときの注意</h4>
+<p>PX4 を新しい版に上げると、mission が位置を受け取れなくなることがある。その場合は、2 つの点を確かめる。1 つは、px4_msgs が新しい PX4 と同じ版でビルドされているかである。もう 1 つは、型の版が変わって、トピック名の後ろの番号(<code>_v1</code> など)が変わっていないかである。</p>
 
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>MicroXRCEAgent を止めると、ドローンはどうなるか。</li>
-  <li>PX4 を新しい版に上げたら、mission が位置を受け取れなくなった。何を疑うか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>mission の仮の目標点と「外から操縦するよ」の合図が PX4 に届かなくなる。PX4 は約 1 秒で気づき、その場で止まる・着陸するなどの安全な動きに切り替える。位置も mission に届かなくなる。</li>
-  <li>2 つを疑う。1 つは px4_msgs が新しい PX4 と同じ版でビルドされているか。もう 1 つは、型の版が変わってトピック名の後ろの番号(<code>_v1</code> など)が変わっていないかである。</li>
-</ol>
-</div>
-
-
-<h3>8.2 頭(mission)と手足(PX4)の分担</h3>
+<h3>8.2 mission と PX4 の役割分担</h3>
+<p>mission と PX4 がやりとりするものを、図 8-3 に示す。紫の矢印は mission から PX4 へのやりとりで、緑の矢印は PX4 から mission へのやりとりである。</p>
+<p>PX4 は、ドローンの中で動く飛行制御のソフトである。風に押されても倒れないように、4 つのモーターの回転を 1 秒に何百回も調整する。mission は「北へ 6 m・東へ 15 m・高さ 18 m の地点へ」と伝えるだけで、モーターをどれだけ回すかは PX4 が決める。</p>
 <figure>
 <svg viewBox="0 0 680 340">
 <defs><marker id="a10" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -455,11 +472,18 @@ lora_link:
 <line x1="446" y1="272" x2="234" y2="272" stroke="#1D9E75" stroke-width="1.5" marker-end="url(#a10)"/>
 <text class="ts" x="340" y="320" text-anchor="middle">上の 2・3 本目は 0.1 秒ごと(1 秒に 10 回)送り続ける</text>
 </svg>
-<figcaption>図 8-2 mission と PX4 のやりとり。紫は mission → PX4、緑は PX4 → mission</figcaption>
+<figcaption>図 8-3 mission と PX4 のやりとり</figcaption>
 </figure>
-<p>PX4 は、ドローンの中で動く飛行制御のソフトである。風に押されても倒れないように、4 つのモーターの回転を 1 秒に何百回も調整する。mission は「北へ 6 m・東へ 15 m・高さ 18 m の地点へ」と伝えるだけで、モーターをどれだけ回すかは PX4 が決める。</p>
-
-<h3>8.3 3 種類のメッセージの型</h3>
+<h3>8.3 PX4 へのメッセージ</h3>
+<p>mission から PX4 へ送るメッセージの型は 3 種類ある。それぞれの送り方と、主な項目を表 8-3 に示す。</p>
+<p><b><code>VehicleCommand</code> は関数ではなく、メッセージの型である。</b>「どんな項目を持つデータか」を決めたもので、自分では何も処理しない。PX4 の開発者が配っている <code>px4_msgs</code> の中の <code>VehicleCommand.msg</code>(テキストファイル)で、項目とお願いの番号表が決まっている。<code>VehicleCommand()</code> と書くと、項目が空のメッセージが 1 つできる。それに値を入れて、<code>publish</code> で送る。</p>
+<p>このプログラムが <code>VehicleCommand</code> で出すお願いは 3 つある。その名前と番号、細かい中身、意味を表 8-4 に示す。</p>
+<p>メッセージに値を入れて送る仕事は、自分たちで書いた関数 <code>_cmd</code>(<code>mission_node.py</code> 222 行目)にまとめている。</p>
+<p>mission から PX4 へメッセージを送るときに、大事な点が 2 つある。</p>
+<ul>
+  <li><b>合図は送り続ける。</b>「外から操縦するよ」がしばらく(初期設定では約 1 秒)届かないと、PX4 は「頭が止まった」と判断し、その場で止まる・着陸するなど、安全な動きに自分で切り替える。そのため 0.1 秒ごとに送っている(166 行目 <code>create_timer(0.1, …)</code>)。今回は PX4 の初期設定のままで、頭を止める実験はしていない。</li>
+  <li><b>高さはマイナスで送る。</b>PX4 は下をプラスに数えるので、高度 18 m は −18(237 行目の <code>-alt</code>)。</li>
+</ul>
 <table>
   <caption>表 8-3 mission から PX4 へ送るメッセージの型</caption>
   <tr><th style="width:24%">メッセージの型</th><th style="width:16%">送り方</th><th>主な項目と中身</th></tr>
@@ -467,25 +491,33 @@ lora_link:
   <tr><td><code>OffboardControlMode</code></td><td>0.1 秒ごと</td><td><code>position</code>(位置で指示する)、<code>velocity</code>(速さも指示する)</td></tr>
   <tr><td><code>TrajectorySetpoint</code></td><td>0.1 秒ごと</td><td><code>position</code>(北・東・下)、<code>velocity</code>(北・東・下)、<code>yaw</code>(機首の向き)</td></tr>
 </table>
-<p><b><code>VehicleCommand</code> は関数ではなく、メッセージの型である。</b>「どんな項目を持つデータか」を決めたもので、自分では何も処理しない。PX4 の開発者が配っている <code>px4_msgs</code> の中の <code>VehicleCommand.msg</code>(テキストファイル)で、項目とお願いの番号表が決まっている。<code>VehicleCommand()</code> と書くと、項目が空のメッセージが 1 つできる。それに値を入れて、<code>publish</code> で送る。</p>
 <table>
-  <caption>表 8-4 このプログラムが出すお願い(<code>VehicleCommand</code>)</caption>
+  <caption>表 8-4 このプログラムが出すお願い</caption>
   <tr><th style="width:38%">名前(番号)</th><th style="width:16%">param1, param2</th><th>意味</th></tr>
   <tr><td><code>VEHICLE_CMD_DO_SET_MODE</code>(176)</td><td>1, 6</td><td>外から操縦するモード(Offboard)に切り替えて。6 がそのモードの番号</td></tr>
   <tr><td><code>VEHICLE_CMD_COMPONENT_ARM_DISARM</code>(400)</td><td>1</td><td>モーターを回してよい状態にして(アーム)。0 なら止める</td></tr>
   <tr><td><code>VEHICLE_CMD_NAV_LAND</code>(21)</td><td>なし</td><td>その場で着陸して</td></tr>
 </table>
-<p>メッセージに値を入れて送る仕事は、自分たちで書いた関数 <code>_cmd</code>(<code>mission_node.py</code> 222 行目)にまとめている。</p>
-<div class="note">
-<b>大事な点 2 つ</b>
-<ul>
-  <li><b>合図は送り続ける。</b>「外から操縦するよ」がしばらく(初期設定では約 1 秒)届かないと、PX4 は「頭が止まった」と判断し、その場で止まる・着陸するなど、安全な動きに自分で切り替える。そのため 0.1 秒ごとに送っている(166 行目 <code>create_timer(0.1, …)</code>)。今回は PX4 の初期設定のままで、頭を止める実験はしていない。</li>
-  <li><b>高さはマイナスで送る。</b>PX4 は下をプラスに数えるので、高度 18 m は −18(237 行目の <code>-alt</code>)。</li>
-</ul>
-</div>
-
 <h4>OffboardControlMode と TrajectorySetpoint のちがい</h4>
 <p>この 2 つは、どちらも 0.1 秒ごとに送るが、同じことはできない。役割がちがうので、<b>いつも 2 つセットで</b>送る。</p>
+<p>2 つのメッセージの中身を、図 8-4 に並べる。右の数字は、北東へ秒速 7 m で進んでいるときの例である。</p>
+<p>図 8-4 の 2 つのメッセージのちがいを、中身・例・たとえの 3 つの点から、表 8-5 にまとめる。</p>
+<p><b>2 つに分かれている理由</b></p>
+<ol>
+  <li><b>どの欄を使うかを、はっきり伝えるため。</b><code>TrajectorySetpoint</code> には、位置・速さ・加速度など、たくさんの欄がある。使い方も、「位置だけで指示する」「速さだけで指示する」などいろいろである。そこで <code>OffboardControlMode</code> で、どれで指示するかを先に宣言する。PX4 は、「はい」になっている欄だけを使って飛ぶ。</li>
+  <li><b>「外から操縦するよ」の合図にもなっているため。</b>PX4 は、<code>OffboardControlMode</code> が届き続けているかを見張っている。上の「大事な点」の「合図は送り続ける」は、このメッセージのことである。</li>
+</ol>
+<p><b>このプログラムでは</b>、どちらも、関数 <code>_send</code>(<code>mission_node.py</code> 230 行目)で、2 つ続けて送る。</p>
+<pre>mode.position = True                       # 位置で指示する:いつも「はい」
+mode.velocity = not math.isnan(vel[0])     # 速さも指示する:速さを渡したときだけ「はい」
+...
+sp.position = [北, 東, -高さ]              # 位置の数字
+sp.velocity = [北, 東, 下]                 # 速さの数字。使わないときは nan(数字なし)
+sp.yaw = 機首の向き</pre>
+<ul>
+  <li><b>移動しているとき</b>(にんじん方式、8.4):<b>位置と速さの両方</b>で指示する。</li>
+  <li><b>準備中</b>のように「その場にいて」と伝えるとき(8.5):<b>位置だけ</b>で指示する。速さは nan にして、<code>velocity</code> の印も「いいえ」にする。</li>
+</ul>
 <figure>
 <svg viewBox="0 0 680 330">
 <rect x="40" y="30" width="270" height="230" rx="10" fill="#EEEDFE" stroke="#534AB7"/>
@@ -510,7 +542,7 @@ lora_link:
 <rect x="190" y="282" width="300" height="36" rx="8" fill="none" stroke="#888780" stroke-width="0.8"/>
 <text class="ts" x="340" y="305" text-anchor="middle">0.1 秒ごとに、2 つセットで PX4 へ送る</text>
 </svg>
-<figcaption>図 8-3 2 つのメッセージのちがい。右の数字は、北東へ秒速 7 m で進んでいるときの例</figcaption>
+<figcaption>図 8-4 2 つのメッセージのちがい</figcaption>
 </figure>
 <table>
   <caption>表 8-5 OffboardControlMode と TrajectorySetpoint</caption>
@@ -519,25 +551,17 @@ lora_link:
   <tr><td>例</td><td>位置で指示する:はい。速さも指示する:はい</td><td>北 6 m・東 15 m・高さ 18 m へ、秒速 7 m で、機首は北東</td></tr>
   <tr><td>たとえ</td><td>注文票の「どの欄を使うか」に付けるチェック</td><td>注文票の欄に書く数字</td></tr>
 </table>
-<p><b>2 つに分かれている理由</b></p>
-<ol>
-  <li><b>どの欄を使うかを、はっきり伝えるため。</b><code>TrajectorySetpoint</code> には、位置・速さ・加速度など、たくさんの欄がある。使い方も、「位置だけで指示する」「速さだけで指示する」などいろいろである。そこで <code>OffboardControlMode</code> で、どれで指示するかを先に宣言する。PX4 は、「はい」になっている欄だけを使って飛ぶ。</li>
-  <li><b>「外から操縦するよ」の合図にもなっているため。</b>PX4 は、<code>OffboardControlMode</code> が届き続けているかを見張っている。上の「大事な点」の「合図は送り続ける」は、このメッセージのことである。</li>
-</ol>
-<p><b>このプログラムでは</b>、どちらも、関数 <code>_send</code>(<code>mission_node.py</code> 230 行目)で、2 つ続けて送る。</p>
-<pre>mode.position = True                       # 位置で指示する:いつも「はい」
-mode.velocity = not math.isnan(vel[0])     # 速さも指示する:速さを渡したときだけ「はい」
-...
-sp.position = [北, 東, -高さ]              # 位置の数字
-sp.velocity = [北, 東, 下]                 # 速さの数字。使わないときは nan(数字なし)
-sp.yaw = 機首の向き</pre>
-<ul>
-  <li><b>移動しているとき</b>(にんじん方式、8.4):<b>位置と速さの両方</b>で指示する。</li>
-  <li><b>準備中</b>のように「その場にいて」と伝えるとき(8.5):<b>位置だけ</b>で指示する。速さは nan にして、<code>velocity</code> の印も「いいえ」にする。</li>
-</ul>
-
-<h3>8.4 仮の目標点(にんじん方式)</h3>
+<h3>8.4 仮の目標点による経路追従</h3>
 <p>馬の前に棒でにんじんをぶら下げると、馬はにんじんを追いかける。にんじんを少しずつ前へ動かせば、馬は同じ速さでついてくる。<b>馬 = ドローン(PX4)、にんじん = 仮の目標点</b>である。</p>
+<p>にんじん方式でドローンが進む様子を、図 8-5 に示す。図 8-5 は、速さ 10 m/秒で 40 m 先へ進む場合である。オレンジのにんじんは 1 回に 1 m 進み、灰色のドローンは少し遅れて追う。ドローンが半径 1.5 m の緑の円に入ったら、「着いた」とする。ただし、図のドローンの追い方は説明用の簡単な計算であり、PX4 の本当の動きではない。</p>
+<ol>
+  <li>最初、にんじんはドローンの今の位置に置く。</li>
+  <li>0.1 秒ごとに、にんじんを目的地の方へ「速さ × 0.1 秒」だけ進め、PX4 に送る。たとえば、移動の 10 m/秒なら 1 回に 1 m、捜索の 7 m/秒なら 0.7 m 進める。</li>
+  <li>にんじんが目的地に着いたら、そこで止める。</li>
+  <li><b>ドローン本体</b>が目的地から 1.5 m 以内に来たら「着いた」とする。にんじんだけが目的地に着いても、ドローンはまだ手前にいるからである。</li>
+</ol>
+<p><b>目的地をいきなり送らないのは、次の理由からである。</b>遠くの目的地をいきなり送ると、PX4 は自分の判断で思いきり加速する。にんじんを少しずつ動かせば、決めた速さ(移動 10 m/秒、捜索 7 m/秒)で、まっすぐ飛べる。人を見落とさないように、決めた速さで飛ぶことが大事である。高さも同じやり方で、1 回に 0.3 m(3 m/秒)ずつ動かす。</p>
+<p><b>仮の目標点の位置と一緒に速さも送るのは、次の理由からである。</b><code>_send</code> は仮の目標点の位置だけでなく、「にんじんが動いている速さ」も送る。位置だけだと、PX4 は追いついては止まり、また追いかける、というぎくしゃくした動きになりやすい。速さも伝えると、PX4 は先回りしてなめらかに飛べる。</p>
 <figure>
 <svg viewBox="0 0 680 230">
 <g font-size="12">
@@ -553,18 +577,14 @@ sp.yaw = 機首の向き</pre>
 <text class="ts" x="330" y="180">にんじん 40 m・ドローン 38.8 m → 着いた</text>
 <text class="ts" x="620" y="222" text-anchor="middle">目的地</text>
 </svg>
-<figcaption>図 8-4 速さ 10 m/秒で 40 m 先へ。にんじん(オレンジ)は 1 回に 1 m 進み、ドローン(灰色)は少し遅れて追う。緑の円(半径 1.5 m)に入ったら「着いた」。ドローンの追い方は説明用の簡単な計算で、PX4 の本当の動きではない</figcaption>
+<figcaption>図 8-5 にんじん方式の動き</figcaption>
 </figure>
-<ol>
-  <li>最初、にんじんはドローンの今の位置に置く。</li>
-  <li>0.1 秒ごとに、にんじんを目的地の方へ「速さ × 0.1 秒」だけ進め、PX4 に送る。たとえば、移動の 10 m/秒なら 1 回に 1 m、捜索の 7 m/秒なら 0.7 m 進める。</li>
-  <li>にんじんが目的地に着いたら、そこで止める。</li>
-  <li><b>ドローン本体</b>が目的地から 1.5 m 以内に来たら「着いた」とする。にんじんだけが目的地に着いても、ドローンはまだ手前にいるからである。</li>
-</ol>
-<p><b>目的地をいきなり送らないのは、次の理由からである。</b>遠くの目的地をいきなり送ると、PX4 は自分の判断で思いきり加速する。にんじんを少しずつ動かせば、決めた速さ(移動 10 m/秒、捜索 7 m/秒)で、まっすぐ飛べる。人を見落とさないように、決めた速さで飛ぶことが大事である。高さも同じやり方で、1 回に 0.3 m(3 m/秒)ずつ動かす。</p>
-<p><b>位置と一緒に速さも送るのは、次の理由からである。</b><code>_send</code> は位置だけでなく、「にんじんが動いている速さ」も送る。位置だけだと、PX4 は追いついては止まり、また追いかける、というぎくしゃくした動きになりやすい。速さも伝えると、PX4 は先回りしてなめらかに飛べる。</p>
-<h4>機首の向き</h4>
+<h4>機首方位の制御</h4>
 <p>機首の向きは、いつも進む向きと同じとは限らない。場面によって、次の 3 通りがある(<code>_fly_to</code> の <code>yaw</code>)。</p>
+<p>図 8-6 は、ふだんのときと、人を確認・見守りしているときの機首の向きを、上から見て比べたものである。三角の出っぱりが機首である。左の図のように、ふだんは進む向きに機首を向ける。右の図のように、人を確認・見守りしているときは、機首を人に向けたまま、人と一緒に流れる。</p>
+<p>3 通りの場面ごとの機首の向きと、その理由を、表 8-6 にまとめる。</p>
+<p>そのため、<b>進む向きと機首の向きがちがう</b>ことがある。いちばんわかりやすいのは、高度 10 m で人を確認しているときである(図 8-6 の右。見守りの高度 12 m でも同じ)。ドローンは、流されている人と一緒に、海流の向き(南南西)へ秒速 0.25 m でゆっくり動く。でも機首は、人の方向に向けたままである。人が北東にいれば、ドローンは機首を北東に向けたまま、横向きに流れていく。</p>
+<p>ここまでの処理が、コードのどこに書いてあるかを、表 8-7 に示す。これらの処理は、<code>mission_node.py</code> の 243 行目にある <code>_fly_to</code> で行っている。</p>
 <figure>
 <svg viewBox="0 0 680 300">
 <text class="th" x="60" y="36">移動・捜索中</text>
@@ -589,7 +609,7 @@ sp.yaw = 機首の向き</pre>
 <text class="ts" x="370" y="278">ゆっくり(秒速 0.25 m)動く</text>
 <line x1="620" y1="90" x2="620" y2="56" stroke="#57606a" stroke-width="1.2"/><polygon points="620,48 615,58 625,58" fill="#57606a"/><text class="ts" x="620" y="104" text-anchor="middle">北</text>
 </svg>
-<figcaption>図 8-5 上から見た図。三角の出っぱりが機首。左:ふだんは進む向きに機首を向ける。右:人を確認・見守りしているときは、機首を人に向けたまま、人と一緒に流れる</figcaption>
+<figcaption>図 8-6 機首の向き</figcaption>
 </figure>
 <table>
   <caption>表 8-6 機首の向きの決め方</caption>
@@ -598,9 +618,8 @@ sp.yaw = 機首の向き</pre>
   <tr><td>にんじんが目的地まで 3 m 未満、または上がる・下がるだけ(離陸、上昇)</td><td><b>前の向きのまま</b>変えない</td><td>残りが短いと進む向きの計算がぶれて、機体がくるくる回ってしまうため</td></tr>
   <tr><td>人の確認・見守りのとき(候補へ移動・降下・確認・オペレータ待ち・見守り)</td><td><b>確認を始めたときの、人の方向に固定</b>(<code>yaw=self.bearing</code>)</td><td>人をカメラの真ん中に写し続けるため</td></tr>
 </table>
-<p>そのため、<b>進む向きと機首の向きがちがう</b>ことがある。いちばんわかりやすいのは、高度 10 m で人を確認しているときである(図 8-5 の右。見守りの高度 12 m でも同じ)。ドローンは、流されている人と一緒に、海流の向き(南南西)へ秒速 0.25 m でゆっくり動く。でも機首は、人の方向に向けたままである。人が北東にいれば、ドローンは機首を北東に向けたまま、横向きに流れていく。</p>
 <table>
-  <caption>表 8-7 コードとの対応(<code>_fly_to</code>、<code>mission_node.py</code> 243 行目)</caption>
+  <caption>表 8-7 コードとの対応</caption>
   <tr><th style="width:45%">説明</th><th>コード</th></tr>
   <tr><td>にんじん</td><td><code>self.carrot</code></td></tr>
   <tr><td>1 回に進める長さ</td><td><code>step = speed * dt</code>(dt = 0.1 秒)</td></tr>
@@ -608,8 +627,9 @@ sp.yaw = 機首の向き</pre>
   <tr><td>PX4 に送る(合図と、位置・速さ・向きの 2 枚セット)</td><td><code>self._send(cn, ce, ca, vel)</code></td></tr>
   <tr><td>にんじんが着いて、本体も 1.5 m 以内なら「着いた」</td><td><code>(cn, ce, ca) == (n, e, alt) and err &lt; accept_radius</code></td></tr>
 </table>
-
-<h3>8.5 離陸までの手順</h3>
+<h3>8.5 離陸シーケンス</h3>
+<p>mission が起動してから離陸するまでの状態の流れを、図 8-7 に示す。この流れは、<code>mission_node.py</code> の 330 行目から書いてある。</p>
+<p>図 8-7 の各段階でやることを、表 8-8 にまとめる。</p>
 <figure>
 <svg viewBox="0 0 680 210">
 <defs><marker id="a10b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -623,19 +643,32 @@ sp.yaw = 機首の向き</pre>
 <text class="ts" x="180" y="162" text-anchor="middle">3 秒たっても返事がない → やり直し</text>
 <text class="ts" x="180" y="195" text-anchor="middle">紫 = まだ地上</text><text class="ts" x="480" y="195" text-anchor="middle">緑 = 飛んでいる</text>
 </svg>
-<figcaption>図 8-6 離陸までの状態の流れ(<code>mission_node.py</code> 330 行目〜)</figcaption>
+<figcaption>図 8-7 離陸までの状態の流れ</figcaption>
 </figure>
 <table>
   <caption>表 8-8 各段階でやること</caption>
   <tr><th style="width:18%">段階</th><th>やること</th></tr>
   <tr><td>1. 準備</td><td>PX4 から聞いた<b>今いる位置を、そのまま</b>仮の目標点として送り続ける(<code>self._send(self.pos.x, self.pos.y, -self.pos.z)</code>。地上ではほぼ北 0・東 0・高さ 0)。約 2 秒(20 回)送ったら、モード切り替えとアームをお願いする</td></tr>
-  <tr><td>2. 返事待ち</td><td>今いる位置を送り続けながら、PX4 の「いまの状態」で、Offboard モードになり、しかもアームできたかを確かめる。そろえば今の場所を離陸地点として覚える。3 秒でそろわなければ 1 に戻る</td></tr>
+  <tr><td>2. 返事待ち</td><td>ドローンが今いる位置を送り続けながら、PX4 の「いまの状態」で、Offboard モードになり、しかもアームできたかを確かめる。そろえば今の場所を離陸地点として覚える。3 秒でそろわなければ 1 に戻る</td></tr>
   <tr><td>3. 離陸</td><td>にんじん方式で真上の高さ 18 m へ(3 m/秒で約 6 秒)。着いたら漂流を予測して捜索の経路を作る</td></tr>
 </table>
-<h4>準備で出す 2 つのお願い</h4>
+<h4>モード切り替えとアーム</h4>
 <p>準備(INIT)では、モード切り替えとアームを、<b>別々に 2 つ</b>お願いする。同じ 0.1 秒の中で、続けて送る(<code>mission_node.py</code> 333〜334 行目)。</p>
 <pre>self._cmd(VehicleCommand.VEHICLE_CMD_DO_SET_MODE, 1.0, 6.0)      # お願い 1:モード切り替え
 self._cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)  # お願い 2:アーム</pre>
+<p>この 2 つのお願いのちがいを、表 8-9 に示す。</p>
+<p><b>どちらか片方だけでは飛べない。</b>モードだけ切り替えても、アームしていなければプロペラは回らない。アームだけしても、Offboard モードでなければ、mission が送る仮の目標点に従わない。</p>
+<p><b>返事も 2 つとも確かめる。</b>返事待ち(ARMING)では、PX4 から届く状態を見て、両方そろったかを確かめる(339〜340 行目)。</p>
+<pre>if (self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD      # モードが切り替わった
+        and self.arming_state == VehicleStatus.ARMING_STATE_ARMED):  # アームできた</pre>
+<p>片方でも断られていれば、3 秒後に準備(INIT)へ戻って、2 つともお願いし直す。</p>
+<p><b>この順番の理由</b></p>
+<ul>
+  <li><b>モードを切り替える前に、2 秒間送り続ける。</b>PX4 は、仮の目標点がもう届いている状態でないと、Offboard モードに切り替えない。切り替えたとたんに指示が来なかったら危ないからである。</li>
+  <li><b>送るのは、ドローンが今いる位置である。</b>その理由は、アームした瞬間にドローンが勝手に動き出さないようにするためである。「ここから動かないで」と伝えているのと同じである。</li>
+  <li><b>お願いを出したあと、PX4 の返事を確かめる。</b>お願いは断られることがある(準備ができていない、安全チェックに通らないなど)。送っただけで切り替わったと思いこまない。</li>
+</ul>
+<p>なお、「20 回」は PX4 からドローンの位置が届く前から数え始めている。ドローンの位置が届くのが遅れると、2 秒送る前にお願いを出すことがある。その場合も、断られたら「3 秒でやり直し」で救われる。実際の飛行でも離陸できていた。</p>
 <table>
   <caption>表 8-9 2 つのお願いのちがい</caption>
   <tr><th style="width:20%"></th><th>お願い 1:モード切り替え</th><th>お願い 2:アーム</th></tr>
@@ -643,44 +676,45 @@ self._cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)  # お願い 2:�
   <tr><td>中身</td><td>外から、つまり mission からの指示で飛ぶモード(Offboard)にして</td><td>モーターを回してよい状態にして</td></tr>
   <tr><td>車でたとえると</td><td>運転を自動運転に任せる設定にする</td><td>エンジンをかける</td></tr>
 </table>
-<p><b>どちらか片方だけでは飛べない。</b>モードだけ切り替えても、アームしていなければプロペラは回らない。アームだけしても、Offboard モードでなければ、mission が送る仮の目標点に従わない。</p>
-<p><b>返事も 2 つとも確かめる。</b>返事待ち(ARMING)では、PX4 から届く状態を見て、両方そろったかを確かめる(339〜340 行目)。</p>
-<pre>if (self.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD      # モードが切り替わった
-        and self.arming_state == VehicleStatus.ARMING_STATE_ARMED):  # アームできた</pre>
-<p>片方でも断られていれば、3 秒後に準備(INIT)へ戻って、2 つともお願いし直す。</p>
+<h3>8.6 設計上の考慮点</h3>
+<h4>mission が止まった場合の動作</h4>
+<p>mission が急に止まると、「外から操縦するよ」の合図が PX4 に届かなくなる。PX4 は約 1 秒でこれに気づき、その場で止まる、着陸するなどの安全な動きに自分で切り替える。PX4 自身は動き続けているので、ドローンが落ちることはない。</p>
+<h4>離陸の準備のやり直し</h4>
+<p>返事待ち(ARMING)で、3 秒たっても「切り替わった」という返事が来ないときは、mission は準備(INIT)に戻る。そして、もう一度、仮の目標点を送り、モード切り替えとアームをお願いし直す。</p>
 
-<p><b>この順番の理由</b></p>
-<ul>
-  <li><b>モードを切り替える前に、2 秒間送り続ける。</b>PX4 は、仮の目標点がもう届いている状態でないと、Offboard モードに切り替えない。切り替えたとたんに指示が来なかったら危ないからである。</li>
-  <li><b>送るのは、今いる位置である。</b>その理由は、アームした瞬間にドローンが勝手に動き出さないようにするためである。「ここから動かないで」と伝えているのと同じである。</li>
-  <li><b>お願いを出したあと、PX4 の返事を確かめる。</b>お願いは断られることがある(準備ができていない、安全チェックに通らないなど)。送っただけで切り替わったと思いこまない。</li>
-</ul>
-<p>補足:「20 回」は PX4 の位置が届く前から数え始めている。位置が届くのが遅れると、2 秒送る前にお願いを出すことがある。その場合も、断られたら「3 秒でやり直し」で救われる。実際の飛行でも離陸できていた。</p>
-
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>頭(mission)が急に止まって「外から操縦するよ」が届かなくなったら、ドローンはどうなるか。</li>
-  <li>「高さ 10 m へ」と伝えるとき、PX4 に送る数字はいくつか。</li>
-  <li>速さ 7 m/秒のとき、にんじんは 1 回に何 m 進むか。</li>
-  <li>返事待ち(ARMING)で、3 秒たっても「切り替わった」という返事が来ないと、どうなるか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>PX4 が約 1 秒で気づき、その場で止まる・着陸するなど、安全な動きに自分で切り替える。手足(PX4)は動き続けているので、落ちることはない。</li>
-  <li>−10 である(下がプラスなので)。</li>
-  <li>7 × 0.1 = 0.7 m である。</li>
-  <li>準備(INIT)に戻って、もう一度、仮の目標点を送り、モード切り替えとアームをお願いし直す。</li>
-</ol>
 </div>
-</div>
-
 <!-- ======================= 9章 ======================= -->
 <div class="chapter">
-<h2>9 章 YOLO</h2>
-
-<h3>9.1 全体の流れ(4 段階)</h3>
-<p>YOLO は、写真を 1 回見るだけで「どこに・何が・どれくらいの確かさで」写っているかを答える AI である。使っているのは YOLO11m で、公開の写真集 COCO(80 種類の物)で学習済みのものである。<code>yolo_detector.py</code> の中では、次の 4 段階で動く。</p>
+<h2>9 章 YOLO による人物検出</h2>
+<h3>9.1 検出処理の流れ</h3>
+<p>YOLO は、写真を 1 回見るだけで「どこに・何が・どれくらいの確かさで」写っているかを答える AI である。使っているのは YOLO11m で、公開の写真集 COCO(80 種類の物)で学習済みのものである。</p>
+<p>その前に、写真の「画素」を説明する。写真は、色の付いた小さな四角が、縦と横にすきまなく並んでできている。この小さな四角の 1 つ 1 つを<b>画素</b>という。このシステムのカメラの写真は、横に 1280 個、縦に 960 個の画素が並んでいる(図 9-1)。写真の中の位置は、「左から何番目・上から何番目の画素か」で表す。たとえば、10 章の例では、人は左から 800 番目・上から 380 番目の画素に写っている。人の大きさも画素の数で表し、高度 18 m から撮ると、人は 20 画素ほどの大きさにしか写らない。</p>
+<p>図 9-1 の左は写真全体で、右は人のまわりを拡大したものである。拡大すると、写真は小さな四角が並んだものだとわかる。</p>
+<p>YOLO は、<code>yolo_detector.py</code> の中で、次の 4 段階で動く。</p>
+<p>YOLO が写真から人を見つけるまでの 4 段階を、図 9-2 に示す。①〜③は <code>_infer</code> で行い、④は <code>detect</code> の後半で行っている。</p>
+<p>図 9-2 の 4 段階で、それぞれ何をするかを、表 9-1 にまとめる。</p>
+<figure>
+<svg viewBox="0 0 680 210">
+<rect x="40" y="30" width="240" height="160" fill="#2f6d93" stroke="#57606a"/>
+<rect x="190" y="88" width="10" height="8" fill="#e8590c"/>
+<rect x="176" y="76" width="38" height="32" fill="none" stroke="#fff" stroke-width="1.5"/>
+<text class="ts" x="160" y="22" text-anchor="middle">横 1280 画素</text>
+<text class="ts" x="30" y="112" text-anchor="end">縦</text><text class="ts" x="30" y="128" text-anchor="end">960</text><text class="ts" x="30" y="144" text-anchor="end">画素</text>
+<line x1="214" y1="76" x2="400" y2="30" stroke="#57606a" stroke-dasharray="3 3"/><line x1="214" y1="108" x2="400" y2="190" stroke="#57606a" stroke-dasharray="3 3"/>
+<g stroke="#ffffff" stroke-width="1">
+<rect x="400" y="30" width="200" height="160" fill="#2f6d93"/>
+<rect x="475" y="75" width="25" height="20" fill="#e8590c"/><rect x="500" y="75" width="25" height="20" fill="#c7522a"/>
+<rect x="475" y="95" width="25" height="20" fill="#c7522a"/><rect x="500" y="95" width="25" height="20" fill="#e8590c"/>
+<rect x="487" y="115" width="25" height="20" fill="#9b4a2a"/>
+</g>
+<g stroke="#ffffff" stroke-width="1" opacity="0.6">
+<line x1="425" y1="30" x2="425" y2="190"/><line x1="450" y1="30" x2="450" y2="190"/><line x1="475" y1="30" x2="475" y2="190"/><line x1="500" y1="30" x2="500" y2="190"/><line x1="525" y1="30" x2="525" y2="190"/><line x1="550" y1="30" x2="550" y2="190"/><line x1="575" y1="30" x2="575" y2="190"/>
+<line x1="400" y1="50" x2="600" y2="50"/><line x1="400" y1="70" x2="600" y2="70"/><line x1="400" y1="90" x2="600" y2="90"/><line x1="400" y1="110" x2="600" y2="110"/><line x1="400" y1="130" x2="600" y2="130"/><line x1="400" y1="150" x2="600" y2="150"/><line x1="400" y1="170" x2="600" y2="170"/>
+</g>
+<text class="ts" x="610" y="100">1 つの四角が</text><text class="ts" x="610" y="118">1 画素</text>
+</svg>
+<figcaption>図 9-1 写真と画素</figcaption>
+</figure>
 <figure>
 <svg viewBox="0 0 680 120">
 <defs><marker id="a8" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -691,7 +725,7 @@ self._cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)  # お願い 2:�
 <text class="th" x="572" y="56" text-anchor="middle">④ NMS</text><text class="ts" x="572" y="78" text-anchor="middle">重なりを 1 つに</text>
 <g stroke="#57606a" stroke-width="1.5"><line x1="177" y1="62" x2="191" y2="62" marker-end="url(#a8)"/><line x1="332" y1="62" x2="346" y2="62" marker-end="url(#a8)"/><line x1="487" y1="62" x2="501" y2="62" marker-end="url(#a8)"/></g>
 </svg>
-<figcaption>図 9-1 YOLO の 4 段階。①〜③は <code>_infer</code>、④は <code>detect</code> の後半</figcaption>
+<figcaption>図 9-2 YOLO の 4 段階</figcaption>
 </figure>
 <table>
   <caption>表 9-1 4 段階の中身</caption>
@@ -701,8 +735,7 @@ self._cmd(VehicleCommand.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)  # お願い 2:�
   <tr><td>③ しきい値</td><td>各候補で一番高い確信度を見て、0.30 未満の候補を捨てる</td></tr>
   <tr><td>④ NMS</td><td>同じ人に重なって付いた枠を、確信度が一番高い 1 つだけ残して消す</td></tr>
 </table>
-
-<h3>9.2 8400 個の候補</h3>
+<h3>9.2 YOLO の出力</h3>
 <p>YOLO は、写真を 3 種類の細かさのます目に分けて、ます目ごとに「ここに何かあるか」を答える。</p>
 <div class="formula">80 × 80 + 40 × 40 + 20 × 20 = 6400 + 1600 + 400 = 8400 個</div>
 <p>細かいます目(80 × 80)は小さい物、粗います目(20 × 20)は大きい物を受け持つ。出力は「84 行 × 8400 列」の表である。コードでは、これを次のように分けている。</p>
@@ -711,8 +744,10 @@ boxes, scores = out[:4].T, out[4:].T     # 上の 4 行 = 枠、残りの 80 行
 cls = scores.argmax(1)                   # 一番確信度が高い種類の番号(人は 0 番)
 conf = scores.max(1)                     # その確信度</pre>
 <p>枠は「中心の x・中心の y・幅・高さ」で出てくるので、あとで「左上・右下」の形に直している。</p>
-
-<h3>9.3 NMS(重なった枠を 1 つにする)</h3>
+<h3>9.3 NMS</h3>
+<p>NMS が重なった枠を 1 つにする様子を、図 9-3 に示す。</p>
+<p>8400 個の候補のうち、隣り合うます目が同じ人に枠を付けることがよくある。NMS(Non-Maximum Suppression、「一番以外を消す」)で、重なった枠を 1 つにする。重なりの割合は IoU で測る。IoU は、2 つの枠が重なった面積を、2 つの枠を合わせた面積で割った値である。</p>
+<p>図 9-3 のように、NMS は、確信度が一番高い枠を残し、その枠と大きく重なる枠を消す。このシステムでは、IoU が 0.45 以上なら、大きく重なっているとみなす。</p>
 <figure>
 <svg viewBox="0 0 680 200">
 <defs><marker id="a8b" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -728,12 +763,14 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="170" y="185" text-anchor="middle">NMS の前:同じ人に 3 つの枠</text>
 <text class="ts" x="500" y="185" text-anchor="middle">NMS の後:1 つ</text>
 </svg>
-<figcaption>図 9-2 NMS。確信度が一番高い枠を残し、それと大きく重なる(重なりの割合 0.45 以上)枠を消す</figcaption>
+<figcaption>図 9-3 NMS</figcaption>
 </figure>
-<p>8400 個の候補のうち、隣り合うます目が同じ人に枠を付けることがよくある。NMS(Non-Maximum Suppression、「一番以外を消す」)で、重なった枠を 1 つにする。重なりの割合は IoU(2 つの枠が重なった面積 ÷ 合わせた面積)で測る。</p>
-
-<h3>9.4 タイル分割(小さく写った人を見つけるため)</h3>
+<h3>9.4 タイル分割推論</h3>
 <p>高度 18 m から撮ると、人は写真の中で数十画素にしか写らない。写真全体(1280 × 960)を 640 × 640 に縮めると、人はさらに半分の大きさになり、見落とす。そこで、<b>写真を重なりのある小さなタイルに分け、タイルごとに推論</b>している。</p>
+<p>3 × 3 のタイルの分け方を、図 9-4 に示す。点線が 1 枚のタイルである。タイルを隣と重ねるのは、タイルの境目にいる人を切らないためである。</p>
+<p>分け方によって、人が YOLO にどれくらいの大きさで届くかを、表 9-2 で比べる。表 9-2 は、写真を YOLO に入る大きさの 640 × 640 に合わせたとき、写真の中で 20 画素の人が何画素になるかを計算したものである。</p>
+<p>YOLO は、どんな写真も 640 × 640 に直してから見る。大きい写真ほど強く縮められ、人も小さくなる。小さく切ってから見せれば、縮められずに済み、人が大きいまま YOLO に届く。</p>
+<p>タイルで見つけた枠は、タイルの左上の位置を足して、元の写真の座標に戻す。重ねた部分では同じ人が 2 枚のタイルで見つかるが、それも次の NMS で 1 つになる。</p>
 <figure>
 <svg viewBox="0 0 680 280">
 <rect x="40" y="20" width="320" height="240" fill="#E6F1FB" stroke="#57606a"/>
@@ -751,19 +788,16 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="th" x="390" y="230">比べると:分けずに全体を 1 回</text>
 <text class="ts" x="390" y="252">0.5 倍に縮む(人 20 → 10 画素)</text>
 </svg>
-<figcaption>図 9-3 3 × 3 のタイル分割(点線が 1 枚のタイル)。重ねるのは、タイルの境目にいる人を切らないため</figcaption>
+<figcaption>図 9-4 3 × 3 のタイル分割</figcaption>
 </figure>
 <table>
-  <caption>表 9-3 YOLO に入る大きさ(640 × 640)に合わせたとき、写真の中で 20 画素の人は何画素になるか</caption>
+  <caption>表 9-2 タイルの分け方と人の写る大きさ</caption>
   <tr><th style="width:34%">見せ方</th><th>640 に合わせるための倍率</th><th class="c">人の大きさ</th></tr>
   <tr><td>分けずに、写真全体(横 1280)を 1 回</td><td>640 ÷ 1280 = 0.5 倍(縮む)</td><td class="c">10 画素</td></tr>
   <tr><td>2 × 2 に分ける(1 枚 横 712)</td><td>640 ÷ 712 = 0.9 倍(少し縮む)</td><td class="c">18 画素</td></tr>
   <tr><td>3 × 3 に分ける(1 枚 横 493)</td><td>640 ÷ 493 = 1.3 倍(大きくなる)</td><td class="c">26 画素</td></tr>
 </table>
-<p>YOLO は、どんな写真も 640 × 640 に直してから見る。大きい写真ほど強く縮められ、人も小さくなる。小さく切ってから見せれば、縮められずに済み、人が大きいまま YOLO に届く。</p>
-<p>タイルで見つけた枠は、タイルの左上の位置を足して、元の写真の座標に戻す。重ねた部分では同じ人が 2 枚のタイルで見つかるが、それも次の NMS で 1 つになる。</p>
-
-<h3>9.5 105〜117 行目(種類ごとの NMS)の読み方</h3>
+<h3>9.5 クラス別 NMS の実装</h3>
 <pre>105  # クラスごとに NMS(タイルの重なりで生じた重複もここで消える)
 106  for k in np.unique(cls):                 # 見つかった種類の番号を 1 つずつ
 107      name = COCO_NAMES[int(k)]            # 番号 → 名前(0 → 'person')
@@ -777,42 +811,34 @@ conf = scores.max(1)                     # その確信度</pre>
 115          dets.append(Detection(…))        #   結果に加える
 117  return dets</pre>
 <p>種類ごとに分けて NMS をするのは、「人の枠」と「船の枠」が重なっていても、どちらも残したいからである(船の上に人がいる場合など)。</p>
-<p>補足:ファイルの先頭の説明には「YOLOv8」と書いてあるが、実際に使っているのは YOLO11 である。出力の形(84 × 8400)が同じなので、同じコードで動く。</p>
-
-<h3>9.6 しきい値 3 種</h3>
+<p>なお、ファイルの先頭の説明には「YOLOv8」と書いてあるが、実際に使っているのは YOLO11 である。出力の形(84 × 8400)が同じなので、同じコードで動く。</p>
+<h3>9.6 確信度のしきい値</h3>
 <p>確信度のしきい値は、使う場所によって 3 つある。だんだん厳しくしていく。</p>
+<p>3 つのしきい値の値と、使う場所を、表 9-3 に示す。</p>
+<p>このほかに、NMS の重なりのしきい値 <code>iou_th = 0.45</code> がある。これは確信度ではなく、「どれだけ重なったら同じ人とみなすか」の値である。</p>
 <table>
-  <caption>表 9-2 確信度のしきい値</caption>
+  <caption>表 9-3 確信度のしきい値</caption>
   <tr><th style="width:22%">名前</th><th class="c" style="width:9%">値</th><th style="width:18%">場所</th><th>意味</th></tr>
   <tr><td><code>conf_threshold</code></td><td class="c">0.30</td><td>detector(YOLO)</td><td>これより低い枠は捨てる。mission に渡す最低ライン</td></tr>
   <tr><td><code>candidate_conf</code></td><td class="c">0.45</td><td>mission(捜索中)</td><td>これ以上なら「候補」にして、降りて確かめに行く</td></tr>
   <tr><td><code>confirm_conf</code></td><td class="c">0.60</td><td>mission(確認高度)</td><td>高度 10 m で、これ以上が 2 回以上(3 秒以上見て)そろえば「確定」</td></tr>
 </table>
-<p>このほかに、NMS の重なりのしきい値 <code>iou_th = 0.45</code> がある。これは確信度ではなく、「どれだけ重なったら同じ人とみなすか」の値である。</p>
+<h3>9.7 設計上の考慮点</h3>
+<h4>写真全体を 1 回で推論した場合の見落とし</h4>
+<p>高度 18 m で写真全体を 1 回だけ推論すると、1280 × 960 の写真が 640 × 640 に縮められる。そのため、20 画素で写っていた人は 10 画素になり、YOLO は人の形を読み取れなくなる。これが、9.4 節のタイル分割推論を使う理由である。</p>
+<h4>確信度 0.50 の検出の扱い</h4>
+<p>しきい値は使う場所によって違うので、同じ確信度でも扱いが変わる。たとえば、確信度 0.50 の検出は、捜索中は 0.45 以上なので候補になり、ドローンは降りて確かめに行く。一方、確認高度では 0.60 未満なので、確定に必要な 1 回には数えられない。</p>
 
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>高度 18 m で、写真全体を 1 回だけ推論すると、人を見落としやすいのはなぜか。</li>
-  <li>確信度 0.50 の検出は、捜索中にどう扱われるか。確認高度ではどうか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>1280 × 960 の写真を 640 × 640 に縮めると、人が半分の大きさ(20 画素なら 10 画素)になり、YOLO が人の形を読み取れなくなるからである。</li>
-  <li>捜索中は 0.45 以上なので「候補」になり、降りて確かめに行く。確認高度では 0.60 未満なので、「確定」の 1 回には数えられない。</li>
-</ol>
 </div>
-</div>
-
 <!-- ======================= 10章 ======================= -->
 <div class="chapter">
-<h2>10 章 座標の計算</h2>
+<h2>10 章 画像座標から地上座標への変換</h2>
 <p>YOLO が答えるのは「写真の中のどこに人がいるか」(画素)である。ドローンが人のところへ飛ぶには、「海の上のどこにいるか」(北へ何 m・東へ何 m)が必要である。この章では、その直し方を 1 つの例で追う。</p>
-<div class="box"><b>例として、次の場合を考える。</b>ドローンは北 −140 m・東 −47 m、高度 18 m、機首は北東(45°)を向いている。カメラは、真下から機首の方へ 30° 傾けてある。写真の中の人は、横 800・縦 380 画素の位置に写っている。</div>
+<p>例として、次の場合を考える。ドローンは北 −140 m・東 −47 m、高度 18 m、機首は北東(45°)を向いている。カメラは、真下から機首の方へ 30° 傾けてある。写真の中の人は、横 800・縦 380 画素の位置に写っている。</p>
 <p>一言でいうと、<b>写真の点 → 角度 → 海面までの距離 → 地図の向き</b>の順に直す。</p>
-<div class="note"><b>図の印の意味は、次のとおりである。</b><span style="color:#E24B4A">●</span>(赤く塗った点)は<b>海の上にいる本当の人</b>、<span style="color:#E24B4A">○</span>(赤い輪)は<b>写真に写った人</b>(写真の上の点)である。図によって、見ている向き(横から・上からなど)がちがう。</div>
-
-<h3>10.1 写真の中で、人は真ん中からどれだけずれているか</h3>
+<p>この章の図の印の意味は、次のとおりである。<span style="color:#E24B4A">●</span>(赤く塗った点)は<b>海の上にいる本当の人</b>、<span style="color:#E24B4A">○</span>(赤い輪)は<b>写真に写った人</b>(写真の上の点)である。図によって、見ている向き(横から・上からなど)がちがう。</p>
+<h3>10.1 画像中心からのずれ</h3>
+<p>人が写真の真ん中からどれだけずれているかを、図 10-1 に示す。人は、写真の真ん中 (640, 480) から、右へ 800 − 640 = 160 画素、上へ 480 − 380 = 100 画素ずれている。画素の縦の番号は、下へ行くほど大きくなる。従って、上へのずれは、480 から 380 を引いて求める。</p>
 <figure>
 <svg viewBox="0 0 680 280">
 <rect x="180" y="20" width="320" height="240" rx="4" fill="#E6F1FB" stroke="#57606a" stroke-width="0.8"/>
@@ -825,18 +851,19 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="520" y="50">写真の大きさ</text><text class="ts" x="520" y="68">横 1280 × 縦 960 画素</text>
 <text class="ts" x="520" y="100">真ん中は (640, 480)</text>
 </svg>
-<figcaption>図 10-1 人は真ん中 (640, 480) から、右へ 800 − 640 = 160 画素、上へ 480 − 380 = 100 画素(画素の縦の番号は下へ行くほど大きい)</figcaption>
+<figcaption>図 10-1 写真の中の人のずれ</figcaption>
 </figure>
-
-<h3>10.2 ずれ(画素)を角度に直す</h3>
+<h3>10.2 画素から角度への変換</h3>
 <p>10.1 で、人は写真の真ん中から「右へ 160 画素・上へ 100 画素」にいるとわかった。でも、画素のままでは、海の上の位置は計算できない。そこで、<b>カメラから見て、真正面から何度ずれた方向に人がいるか</b>に直す。3 段階で考える。</p>
-
-<h4>① カメラは、横に 100° の範囲が見える</h4>
+<h4>① カメラの画角</h4>
 <p>カメラが一度に見える広さ(画角)は、横に 100° である。真正面から左へ 50°、右へ 50° である。これはカメラの性質で、設定ファイルの <code>hfov: 1.74</code>(1.74 ラジアン = 100°)がこれである。</p>
-
-<h4>② 写真を「カメラの前に立てたスクリーン」と考える</h4>
+<h4>② スクリーンのモデル</h4>
 <p>写真は、カメラの前に立てたスクリーンに、景色が映ったものだと考える。スクリーンの横幅は 1280 画素で、真ん中から右端までは 640 画素である。</p>
 <p>写真の右端には、真正面から右へ 50° の方向の景色が写る(①)。そこで、<b>スクリーンの右端が、カメラからちょうど 50° の方向に見える</b>ように、スクリーンを置く。そのためには、カメラから 537 画素はなれた所に置けばよい、と計算できる(図 10-2)。</p>
+<p>図 10-2 は、カメラとスクリーンを上から見た図である。スクリーンを 537 画素はなれた所に置くと、スクリーンの右端の 640 画素が、ちょうど 50° の方向に見える。</p>
+<p><b>537 は、次のように求める。</b>図 10-2 の右半分は、縦(カメラからスクリーンまで)と横(640 画素)の直角三角形である。角度と縦・横の長さの関係は、<b>tan(タンジェント)</b>で表せる。tan 50° ≒ 1.19 は、「角度が 50° のとき、横は縦の 1.19 倍」という意味である。横が 640 なので、縦は 640 ÷ 1.19 ≒ 537 である。</p>
+<div class="formula">スクリーンまでの距離 = 640 ÷ tan 50° = 640 ÷ 1.19 ≒ 537 画素</div>
+<p>この 537 画素を<b>焦点距離</b>と呼ぶ。カメラと写真の大きさだけで決まるので、どの写真でも同じ値である。</p>
 <figure>
 <svg viewBox="0 0 680 320">
 <line x1="116" y1="102" x2="564" y2="102" stroke="#378ADD" stroke-width="4"/>
@@ -853,14 +880,15 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="560" y="200">右端は 50° の方向</text>
 <text class="ts" x="40" y="200">見える範囲 100°</text>
 </svg>
-<figcaption>図 10-2 上から見た図。右端(640 画素)がちょうど 50° に見える距離が 537 画素</figcaption>
+<figcaption>図 10-2 スクリーンまでの距離</figcaption>
 </figure>
-<p><b>537 は、次のように求める。</b>図 10-2 の右半分は、縦(カメラからスクリーンまで)と横(640 画素)の直角三角形である。角度と縦・横の長さの関係は、<b>tan(タンジェント)</b>で表せる。tan 50° ≒ 1.19 は、「角度が 50° のとき、横は縦の 1.19 倍」という意味である。横が 640 なので、縦は 640 ÷ 1.19 ≒ 537 である。</p>
-<div class="formula">スクリーンまでの距離 = 640 ÷ tan 50° = 640 ÷ 1.19 ≒ 537 画素</div>
-<p>この 537 画素を<b>焦点距離</b>と呼ぶ。カメラと写真の大きさだけで決まるので、どの写真でも同じ値である。</p>
-
-<h4>③ 人がいる方向の角度を出す</h4>
+<h4>③ 人の方向の角度</h4>
 <p>人は、同じスクリーンの上で、真ん中から右へ 160 画素の所に写っている。カメラから人へ線を引くと、縦 537 画素・横 160 画素の直角三角形ができる(図 10-3)。この三角形の角度が、人のいる方向である。</p>
+<p>今度は、縦と横から角度を出す。tan の反対の計算で、<b>tan⁻¹(アークタンジェント)</b>と書く。電卓では「横 ÷ 縦」を計算してから tan⁻¹ のボタンを押す。</p>
+<div class="formula">右へ:tan⁻¹(160 ÷ 537) = tan⁻¹(0.298) ≒ 16.6°</div>
+<p>上下も、まったく同じ考え方である。人は真ん中から上へ 100 画素なので、縦 537・横 100 の三角形になる。</p>
+<div class="formula">上へ:tan⁻¹(100 ÷ 537) = tan⁻¹(0.186) ≒ 10.5°</div>
+<p>これで、人は<b>カメラの真正面から、右へ 16.6°・上へ 10.5° の方向</b>にいるとわかった。次の 10.3 では、この方向に線を伸ばして、海面に当たる点を求める。</p>
 <figure>
 <svg viewBox="0 0 680 320">
 <line x1="116" y1="102" x2="564" y2="102" stroke="#378ADD" stroke-width="4" stroke-opacity="0.4"/>
@@ -877,15 +905,10 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="460" y="190">縦 537・横 160 の三角形</text>
 <text class="ts" x="460" y="210">→ 角度は 16.6°</text>
 </svg>
-<figcaption>図 10-3 人がいる方向。真正面から右へ 16.6°</figcaption>
+<figcaption>図 10-3 人がいる方向</figcaption>
 </figure>
-<p>今度は、縦と横から角度を出す。tan の反対の計算で、<b>tan⁻¹(アークタンジェント)</b>と書く。電卓では「横 ÷ 縦」を計算してから tan⁻¹ のボタンを押す。</p>
-<div class="formula">右へ:tan⁻¹(160 ÷ 537) = tan⁻¹(0.298) ≒ 16.6°</div>
-<p>上下も、まったく同じ考え方である。人は真ん中から上へ 100 画素なので、縦 537・横 100 の三角形になる。</p>
-<div class="formula">上へ:tan⁻¹(100 ÷ 537) = tan⁻¹(0.186) ≒ 10.5°</div>
-<p>これで、人は<b>カメラの真正面から、右へ 16.6°・上へ 10.5° の方向</b>にいるとわかった。次の 10.3 では、この方向に線を伸ばして、海面に当たる点を求める。</p>
-
-<h3>10.3 その角度で線を伸ばし、海面に当たる点を出す</h3>
+<h3>10.3 視線と海面の交点</h3>
+<p>カメラから人へ伸ばした線を、横から見た図が図 10-4 である。カメラは真下から 30° 傾いており、人はその真正面から上へ 10.5° の方向にいる。従って、線は真下から 30 + 10.5 = 40.5° の向きに伸びる。真下から 40.5° の線は、前へ 18 × tan 40.5° = 15.4 m 進んだ所で、海面に当たる。</p>
 <figure>
 <svg viewBox="0 0 680 300">
 <rect x="40" y="270" width="600" height="24" fill="#378ADD" fill-opacity="0.18"/>
@@ -899,12 +922,19 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="390" y="110">40.5° = カメラの傾き 30°</text><text class="ts" x="390" y="130">　　　+ 上へ 10.5°</text>
 <text class="ts" x="390" y="170">横のずれ 16.6° からは</text><text class="ts" x="390" y="190">→ 右へ 6.9 m</text>
 </svg>
-<figcaption>図 10-4 横から見た図。真下から 40.5° の線は、前へ 18 × tan 40.5° = 15.4 m で海面に当たる</figcaption>
+<figcaption>図 10-4 線が海面に当たる点</figcaption>
 </figure>
-<h4>右へのずれ(6.9 m)の出し方</h4>
+<h4>横方向のずれの計算</h4>
 <p><b>ここでやりたいことは、次のことである。</b>写真の上の「右へ 160 画素」を、海の上の「右へ何 m」に直す。</p>
 <p><b>考え方は、次のとおりである。</b>遠くにある物ほど、写真には小さく写る。同じ 160 画素のずれでも、近くなら数十 cm、遠くなら何 m にもなる。だから、<b>人がカメラからどれだけ遠いか</b>がわかれば、m に直せる。その「遠さ」が 23.3 m である。</p>
 <p>図 10-5 は、10.2 の図 10-3 と同じく、カメラの真正面を上に向けて描いたものである。カメラから人へ伸ばした線(オレンジ)は、どこまで伸ばしても同じ角度(16.6°)である。</p>
+<p>図 10-5 は、図 10-3 を、人がいる所まで伸ばしたものである。○ と ● は、同じ線の上にある。青で描いた写真と、緑で描いた人がいる所は、どちらもカメラの真正面の向きに直角である。従って、「先へ行った距離」と「右へのずれ」の割合は、写真の上でも人がいる所でも同じになる。</p>
+<p>写真の上では、537 画素先で 160 画素右である。割合は 160 ÷ 537 = 0.30 である。人がいる所でも、割合は同じ 0.30 である。人がいる所が<b>真正面の向きに 23.3 m 先</b>なら、右へのずれは次のとおりである。</p>
+<div class="formula">右へ:23.3 × 0.30 ≒ 6.9 m</div>
+<p>ここで大事なのは、23.3 m を<b>カメラの真正面の向き(紫の点線)に沿って</b>測ることである。537 画素も、この向きに沿って測った長さだからである。</p>
+<p>図 10-5 の緑の線を立体的に見ると、図 10-6 のようになる。図 10-5 の緑の線は、本当は大きな板である。写真(スクリーン)を、人がいる所まで大きくしたもので、カメラの真正面に直角に立っている(図 10-6)。</p>
+<p>図 10-6 の緑の板は、写真を人の所まで大きくした想像上の板で、大きさは横 55.6 m・縦 41.7 m である。板はカメラと一緒に 30° 傾いているので、海面を斜めに横切り、上は空中に、下は海の中に出る。図では、海の中に出た部分を点線で描いた。本当の人 ● は、板と海面が交わる線の上にいて、板の真ん中 D から右へ 6.9 m、上へ 4.3 m の所にいる。この割合は、写真の上の ○ と同じである。</p>
+<p>本物の板ではなく、長さを測るために考える板なので、空中にも海の中にも出てかまわない。この板の上では、写真の 1 画素が 23.3 ÷ 537 ≒ 0.043 m(4.3 cm)にあたる。だから、160 画素 × 4.3 cm ≒ 6.9 m である。</p>
 <figure>
 <svg viewBox="0 0 680 330">
 <line x1="340" y1="300" x2="340" y2="40" stroke="#7F77DD" stroke-width="1.5" stroke-dasharray="6 4"/>
@@ -923,13 +953,8 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="496" y="76">23.3 m 先で、6.9 m 右</text><text class="ts" x="496" y="96">● = 本当の人</text>
 <text class="ts" x="346" y="34">紫の点線:カメラの真正面の向き</text>
 </svg>
-<figcaption>図 10-5 カメラの真正面を上にして見た図(図 10-3 を、人がいる所まで伸ばしたもの)。○ と ● は同じ線の上にある。写真(青)と、人がいる所(緑)は、どちらもカメラの真正面の向きに直角。同じ線の上にあるので、「先へ行った距離」と「右へのずれ」の割合は同じ</figcaption>
+<figcaption>図 10-5 カメラの真正面を上にして見た図</figcaption>
 </figure>
-<p>写真の上では、537 画素先で 160 画素右である。割合は 160 ÷ 537 = 0.30 である。人がいる所でも、割合は同じ 0.30 である。人がいる所が<b>真正面の向きに 23.3 m 先</b>なら、右へのずれは次のとおりである。</p>
-<div class="formula">右へ:23.3 × 0.30 ≒ 6.9 m</div>
-<p>ここで大事なのは、23.3 m を<b>カメラの真正面の向き(紫の点線)に沿って</b>測ることである。537 画素も、この向きに沿って測った長さだからである。</p>
-
-<p><b>図 10-5 の緑の線を立体的に見ると、次のようになる。</b>図 10-5 の緑の線は、本当は大きな板である。写真(スクリーン)を、人がいる所まで大きくしたもので、カメラの真正面に直角に立っている(図 10-6)。</p>
 <figure>
 <svg viewBox="0 0 680 320">
 <polygon points="215.1,137.8 489.6,193.6 415.5,297.5 141.1,241.8" fill="#1D9E75" fill-opacity="0.08" stroke="#1D9E75" stroke-width="1.5" stroke-dasharray="5 4"/>
@@ -969,12 +994,11 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="th" x="356.738172354206" y="210.58911439448212" text-anchor="middle">右へ 6.9 m</text>
 <text class="ts" x="331.58336885511926" y="187.62501965721668" text-anchor="end">D</text>
 </svg>
-<figcaption>図 10-6 立体的に見た図。緑の板は、写真を人の所まで大きくした想像上の板(横 55.6 m・縦 41.7 m)。カメラと一緒に 30° 傾いているので、海面を斜めに横切り、上は空中、下は海の中に出る(点線)。本当の人 ● は、板と海面が交わる線の上にいて、板の真ん中 D から右へ 6.9 m(と上へ 4.3 m)。写真の上の ○ と同じ割合</figcaption>
+<figcaption>図 10-6 立体的に見た図</figcaption>
 </figure>
-<p>本物の板ではなく、長さを測るために考える板なので、空中にも海の中にも出てかまわない。この板の上では、写真の 1 画素が 23.3 ÷ 537 ≒ 0.043 m(4.3 cm)にあたる。だから、160 画素 × 4.3 cm ≒ 6.9 m である。</p>
-
-<h4>23.3 m の求め方</h4>
+<h4>奥行き 23.3 m の計算</h4>
 <p>人がいる所(緑の線)が、カメラの真正面の向き(紫の点線)に何 m 先かを、横から見た図で計算する(図 10-7)。</p>
+<p>図 10-7 では、紫の点線を、海面に当たった C で止めずに、緑の線に当たる D まで伸ばしている。そのため、D は海面より下になる。</p>
 <figure>
 <svg viewBox="0 0 680 380">
 <rect x="40" y="270" width="600" height="44" fill="#378ADD" fill-opacity="0.18"/>
@@ -998,17 +1022,14 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="380" y="120">紫の点線:カメラの真正面の向き(真下から 30°)</text>
 <text class="ts" x="380" y="144">2 つの線の間は 10.5°</text>
 <text class="ts" x="380" y="182">緑:人を通り、紫の点線に直角な線</text>
-<text class="ts" x="380" y="202">(図 9-5 の「人がいる所」。海の中まで続く</text>
+<text class="ts" x="380" y="202">(図 10-5 の「人がいる所」。海の中まで続く</text>
 <text class="ts" x="380" y="222">と考える)</text>
 </svg>
-<figcaption>図 10-7 横から見た図。紫の点線は、海面に当たった C で止めずに、緑の線に当たる D まで伸ばしている。D は海面より下になる</figcaption>
+<figcaption>図 10-7 23.3 m の求め方</figcaption>
 </figure>
-
-<div class="note"><b>18 ÷ cos 30° ではないの?</b>
-18 ÷ cos 30° = 18 ÷ 0.866 ≒ 20.8 m は、紫の点線が<b>海面に当たる所(C)</b>までの長さである。C は、写真の<b>ちょうど真ん中</b>に写っている海の点である。人は写真の真ん中より上に写っている(上へ 100 画素)ので、C より<b>奥</b>にいる。だから、人を通る緑の線は、C より先で紫の点線と交わる(D)。必要なのは D までの長さである。</div>
-
+<h4>18 ÷ cos 30° を使わない理由</h4>
+<p>18 ÷ cos 30° = 18 ÷ 0.866 ≒ 20.8 m は、紫の点線が<b>海面に当たる所(C)</b>までの長さである。C は、写真の<b>ちょうど真ん中</b>に写っている海の点である。人は写真の真ん中より上に写っている(上へ 100 画素)ので、C より<b>奥</b>にいる。だから、人を通る緑の線は、C より先で紫の点線と交わる(D)。必要なのは D までの長さである。</p>
 <p><b>D までの長さが必要な理由は、次のとおりである。</b>10.2 の「537 画素先で 160 画素右」という割合は、写真と同じ向きの面(紫の点線に直角な面)の上でだけ使える。人がいるのは緑の線の上である。C を通る面は人を通らないので、C までの長さ(20.8 m)では、人の右へのずれは出せない。</p>
-
 <p><b>D までの長さは、そのままでは測れない。</b>わかっているのは、オレンジの線(カメラから人へ向かう線)の角度である。そこで、次の 2 段階で求める。</p>
 <ol>
   <li>1 段階目では、カメラから人まで、オレンジの線に沿った長さを求める。高さ 18 m を、真下から 40.5° の向きに進むと、18 ÷ cos 40.5° = 18 ÷ 0.760 ≒ <b>23.7 m</b> で人(海面)に着く。</li>
@@ -1016,8 +1037,10 @@ conf = scores.max(1)                     # その確信度</pre>
 </ol>
 <p>2 の考え方は、「北から 10.5° 東へずれた向きに 23.7 m 歩くと、北へは 23.3 m 進んだことになる」のと同じである。cos 10.5° = 0.983 は、「10.5° ずれた向きに 1 m 進むと、もとの向きには 0.983 m 進む」という意味である。</p>
 <p>コード(<code>pixel_to_ground</code>)では、この 2 段階をまとめて計算していて、23.3 m は変数 <code>t</code> の値(23.29)にあたる。</p>
-
-<h3>10.4 「前・右」を「北・東」に直し、ドローンの位置を足す</h3>
+<h3>10.4 機体座標から北・東への変換</h3>
+<p>ドローンから見た「前・右」を、地図の「北・東」に直す様子を、上から見た図で図 10-8 に示す。北東を向いたドローンから見て「前 15.4 m・右 6.9 m」の所は、地図の上では「北へ 6.0 m・東へ 15.8 m」の所になる。</p>
+<div class="formula">北 = 前 × cos 45° − 右 × sin 45° = 15.4 × 0.707 − 6.9 × 0.707 = 6.0 m<br>東 = 前 × sin 45° + 右 × cos 45° = 15.4 × 0.707 + 6.9 × 0.707 = 15.8 m<br>遭難者の位置 = (−140 + 6.0, −47 + 15.8) = 北 −134.0 m・東 −31.2 m</div>
+<p>この結果は、コード(<code>geo.py</code> の <code>pixel_to_ground</code>)で同じ条件を計算した値と一致する。</p>
 <figure>
 <svg viewBox="0 0 680 290">
 <defs><marker id="a9" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -1034,13 +1057,12 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="420" y="120">ドローンの位置</text><text class="ts" x="420" y="140">北 −140、東 −47</text><text class="ts" x="420" y="160">に足すと</text>
 <text class="th" x="420" y="190">北 −134.0、東 −31.2</text>
 </svg>
-<figcaption>図 10-8 上から見た図。北東を向いたドローンの「前 15.4 m・右 6.9 m」は「北へ 6.0 m・東へ 15.8 m」</figcaption>
+<figcaption>図 10-8 「前・右」を「北・東」に直す</figcaption>
 </figure>
-<div class="formula">北 = 前 × cos 45° − 右 × sin 45° = 15.4 × 0.707 − 6.9 × 0.707 = 6.0 m<br>東 = 前 × sin 45° + 右 × cos 45° = 15.4 × 0.707 + 6.9 × 0.707 = 15.8 m<br>人の位置 = (−140 + 6.0, −47 + 15.8) = 北 −134.0 m・東 −31.2 m</div>
-<p>この結果は、コード(<code>geo.py</code> の <code>pixel_to_ground</code>)で同じ条件を計算した値と一致する。</p>
-
-<h3>10.5 機体の傾き</h3>
-<p>飛んでいるドローンは、前に進むときに機首を少し下げる。カメラは機体に固定されているので、カメラも一緒に下を向く。この傾きを直さないと、位置がずれる。</p>
+<h3>10.5 機体姿勢の補正</h3>
+<p>飛んでいるドローンは、前に進むときに機首を少し下げる。カメラは機体に固定されているので、カメラも一緒に下を向く。この傾きを直さないと、計算した遭難者の位置がずれる。</p>
+<p>機体が傾くと、線が海面に当たる点がどれだけずれるかを、図 10-9 に示す。機体が前後に 5° 傾くだけで、当たる点は 3 m 近くずれる。このずれは、ボードの停止距離 2 m より大きいので、無視できない。</p>
+<p>コードでは、10.4 の「向きで回す」ときに、PX4 から届く<b>姿勢(四元数 <code>q</code>)</b>を使っている。<code>q</code> には、機首の向きだけでなく、前後・左右の傾きも入っている。そのため、向きと一緒に傾きも直る。</p>
 <figure>
 <svg viewBox="0 0 680 330">
 <rect x="40" y="300" width="600" height="24" fill="#378ADD" fill-opacity="0.18"/>
@@ -1056,11 +1078,15 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="420" y="166">オレンジ:傾きなし → 15.4 m</text>
 <text class="ts" x="420" y="192">緑:機首を 5° 上げる → 18.3 m(2.9 m 先)</text>
 </svg>
-<figcaption>図 10-9 機体が前後に 5° 傾くだけで、線が海面に当たる点は 3 m 近くずれる。このずれは、ボードの停止距離 2 m より大きいので、無視できない</figcaption>
+<figcaption>図 10-9 機体の傾きによるずれ</figcaption>
 </figure>
-<p>コードでは、10.4 の「向きで回す」ときに、PX4 から届く<b>姿勢(四元数 <code>q</code>)</b>を使っている。<code>q</code> には、機首の向きだけでなく、前後・左右の傾きも入っている。そのため、向きと一緒に傾きも直る。</p>
-<h4>計算してみる:機首を 5° 下げて撮った場合</h4>
+<h4>機首を 5° 下げた場合の計算例</h4>
 <p>10 章の例と<b>同じ写真</b>(人は横 800・縦 380 画素の位置)で、撮ったときだけ機首が 5° 下がっていたとする。カメラは機体に固定されているので、カメラも 5° 下を向く。カメラの傾きが、真下から 30° ではなく <b>25°</b> になったのと同じである。</p>
+<p>傾きなしの場合と、機首を 5° 下げた場合を、横から見た図で図 10-10 に比べる。同じ写真の同じ位置に人が写っていても、機首が 5° 下がっていると、人は 2.5 m 手前にいることになる。</p>
+<p>あとは、10.2〜10.4 と同じ手順で、30° を 25° に変えて計算するだけである。</p>
+<p>2 つの場合の計算を、手順ごとに表 10-1 に並べる。</p>
+<p>機首が下がると、人は 2.5 m 手前にいることになり、北・東の値もそれだけずれる。もし傾きを無視して「傾きなし」の列で計算すると、遭難者の位置を 2.5 m まちがえる。コードは PX4 から届く姿勢 <code>q</code> を使うので、自動的に右の列の計算になる。</p>
+<p>表の値は、途中の値を四捨五入して書いているので、最後の桁が少しずれることがある。最後の行は、コード <code>geo.py</code> で計算した値である。</p>
 <figure>
 <svg viewBox="0 0 680 320">
 <rect x="40" y="270" width="600" height="34" fill="#378ADD" fill-opacity="0.18"/><line x1="40" y1="270" x2="640" y2="270" stroke="#378ADD"/>
@@ -1082,11 +1108,10 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="360" y="210">人へ:25 + 10.5 = 35.5° → 前へ 12.9 m</text>
 
 </svg>
-<figcaption>図 10-10 横から見た図。同じ写真の同じ位置に人が写っていても、機首が 5° 下がっていると、人は 2.5 m 手前にいる</figcaption>
+<figcaption>図 10-10 機首を 5° 下げた場合</figcaption>
 </figure>
-<p>あとは、10.2〜10.4 と同じ手順で、30° を 25° に変えて計算するだけである。</p>
 <table>
-  <caption>表 10-2 傾きなしと、機首を 5° 下げた場合の比べ(同じ写真、人は 800・380 画素)</caption>
+  <caption>表 10-1 傾きなしと、機首を 5° 下げた場合の比べ</caption>
   <tr><th style="width:34%">手順</th><th>傾きなし(カメラ 30°)</th><th>機首 5° 下げ(カメラ 25°)</th></tr>
   <tr><td>9.2 写真から角度</td><td colspan="2" class="c">右へ 16.6°・上へ 10.5°(同じ写真なので同じ)</td></tr>
   <tr><td>9.3 真下からの角度</td><td>30 + 10.5 = 40.5°</td><td>25 + 10.5 = 35.5°</td></tr>
@@ -1097,19 +1122,24 @@ conf = scores.max(1)                     # その確信度</pre>
   <tr><td>9.4 東へ(前 × 0.707 + 右 × 0.707)</td><td>(15.4 + 6.9) × 0.707 = 15.8 m</td><td>(12.9 + 6.5) × 0.707 = 13.7 m</td></tr>
   <tr><td>9.4 ドローンの位置(北 −140・東 −47)を足す</td><td><b>北 −134.0・東 −31.2</b></td><td><b>北 −135.5・東 −33.3</b></td></tr>
 </table>
-<p>機首が下がると、人は 2.5 m 手前にいることになり、北・東の値もそれだけずれる。もし傾きを無視して「傾きなし」の列で計算すると、人の位置を 2.5 m まちがえる。コードは PX4 から届く姿勢 <code>q</code> を使うので、自動的に右の列の計算になる。</p>
-<p class="meta">(表の値は、途中の値を四捨五入して書いているので、最後の桁が少しずれることがある。最後の行は、コード <code>geo.py</code> で計算した値である。)</p>
-
-<h3>10.6 緯度・経度に直す</h3>
+<h3>10.6 緯度・経度への変換</h3>
 <p>「北へ何 m・東へ何 m」は、離陸地点から見た距離である。救助隊に知らせるときは、緯度・経度に直す(<code>ned_to_latlon</code>)。離陸地点は北緯 26.5472°・東経 128.0540° としている。</p>
+<p>例で求めた遭難者の位置、北 −134.0 m・東 −31.2 m を、緯度・経度に直す計算を表 10-2 に示す。</p>
 <table>
-  <caption>表 10-1 北 −134.0 m・東 −31.2 m を緯度・経度に</caption>
+  <caption>表 10-2 北 −134.0 m・東 −31.2 m を緯度・経度に</caption>
   <tr><th style="width:16%"></th><th>1° の長さ</th><th>計算</th><th>結果</th></tr>
   <tr><td>緯度</td><td>約 111.3 km(どこでも同じ)</td><td>134.0 ÷ 111,319 = 0.00120° 減る</td><td>26.545996°</td></tr>
   <tr><td>経度</td><td>約 99.6 km(この緯度では)</td><td>31.2 ÷ 99,583 = 0.00031° 減る</td><td>128.053687°</td></tr>
 </table>
-<h4>経度の 1° が、緯度の 1° より短いわけ</h4>
+<h4>経度 1° の長さ</h4>
 <p><b>北緯 26.5° は、今回のドローンが飛んでいる場所の緯度である。</b>離陸地点を北緯 26.5472° と決めているので、その緯度での経度 1° の長さを使う。コードの <code>ned_to_latlon</code> も、離陸地点の緯度 <code>lat0</code> を使って <code>R_EARTH * cos(radians(lat0))</code> と計算している。飛ぶ場所が変われば、この長さも変わる。たとえば東京(北緯 35.7°)では経度 1° は約 90.4 km、札幌(北緯 43.1°)では約 81.3 km である。</p>
+<p>経度 1° の長さが緯度によって変わる理由を、図 10-11 に示す。左は、地球を横から見た図である。経線は北極に向かって集まるので、経度の差が同じでも、北へ行くほど、赤で示した東西の幅が短くなる。右は地球の断面で、北緯 26.5° の東西の輪は、赤道の輪より小さい。</p>
+<ul>
+  <li><b>経度</b>は、東西にぐるっと一周する輪を、360 に分けた目もりである。だから、経度 1° の長さ = その輪の一周 ÷ 360 である。</li>
+  <li><b>赤道の輪</b>は一番大きく、一周 40,075 km である。経度 1° = 40,075 ÷ 360 ≒ <b>111.3 km</b>。</li>
+  <li><b>北緯 26.5° の輪</b>は、それより小さくなる。図の右のように、輪の半径は 6,378 km × cos 26.5° = 5,706 km で、赤道の 0.895 倍である。一周も 0.895 倍の 35,850 km なので、経度 1° = 35,850 ÷ 360 ≒ <b>99.6 km</b>(= 111.3 × 0.895)。</li>
+  <li><b>緯度</b>の 1° は、北極と南極を通る大きな輪(どれも赤道と同じ大きさ)を 360 に分けた目もりなので、どこでも <b>111.3 km</b> である。</li>
+</ul>
 <figure>
 <svg viewBox="0 0 680 375">
 <circle cx="170" cy="170" r="120" fill="#E6F1FB" stroke="#57606a" stroke-width="1"/>
@@ -1144,45 +1174,32 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="390" y="360">6,378 × cos 26.5° = 5,706 km(0.895 倍)</text>
 
 </svg>
-<figcaption>図 10-11 左:地球を横から見た図。縦の線(経線)は北極に向かって集まるので、経度の差が同じでも、北へ行くほど東西の幅(赤)が短くなる。右:地球の断面。北緯 26.5° の東西の輪は、赤道の輪より小さい</figcaption>
+<figcaption>図 10-11 経度 1° の長さが緯度で変わる理由</figcaption>
 </figure>
-<ul>
-  <li><b>経度</b>は、東西にぐるっと一周する輪を、360 に分けた目もりである。だから、経度 1° の長さ = その輪の一周 ÷ 360 である。</li>
-  <li><b>赤道の輪</b>は一番大きく、一周 40,075 km である。経度 1° = 40,075 ÷ 360 ≒ <b>111.3 km</b>。</li>
-  <li><b>北緯 26.5° の輪</b>は、それより小さくなる。図の右のように、輪の半径は 6,378 km × cos 26.5° = 5,706 km で、赤道の 0.895 倍である。一周も 0.895 倍の 35,850 km なので、経度 1° = 35,850 ÷ 360 ≒ <b>99.6 km</b>(= 111.3 × 0.895)。</li>
-  <li><b>緯度</b>の 1° は、北極と南極を通る大きな輪(どれも赤道と同じ大きさ)を 360 に分けた目もりなので、どこでも <b>111.3 km</b> である。</li>
-</ul>
-
 <h3>10.7 コードとの対応</h3>
+<p>10.1〜10.6 の各段階が、<code>geo.py</code> のどの関数にあたるかを、表 10-3 に示す。</p>
+<p>コードは、「前・右・下」の 3 つの数の組(ベクトル)で、10.2〜10.4 をまとめて計算している。この資料では、わかりやすくするために、横から見た図と上から見た図に分けて説明した。</p>
 <table>
+  <caption>表 10-3 計算の段階とコードの対応</caption>
   <tr><th style="width:30%">段階</th><th>コード(<code>geo.py</code>)</th></tr>
   <tr><td>9.1・9.2 画素 → 角度(とカメラの傾き)</td><td><code>pixel_ray_body</code>。焦点距離は <code>f = (width / 2) / tan(hfov / 2)</code></td></tr>
   <tr><td>9.4・9.5 向きと傾きで回す</td><td><code>quat_to_rot(q) @ …</code>(<code>@</code> は「回転の表を掛ける」計算)</td></tr>
   <tr><td>9.3・9.4 海面に当てる、位置を足す</td><td><code>pixel_to_ground</code> の後半(<code>t = (ground_z - pos_ned[2]) / ray[2]</code>)</td></tr>
   <tr><td>9.6 緯度・経度</td><td><code>ned_to_latlon</code></td></tr>
 </table>
-<p>コードは、「前・右・下」の 3 つの数の組(ベクトル)で、10.2〜10.4 をまとめて計算している。この資料では、わかりやすくするために、横から見た図と上から見た図に分けて説明した。</p>
+<h3>10.8 設計上の考慮点</h3>
+<h4>傾きを補正しない場合のずれの向き</h4>
+<p>ドローンが機首を 10° 下げているのに、傾きを直さずに計算すると、遭難者の位置は実際より手前にずれる。機首が下がるとカメラも下を向くので、線が近くの海面に当たるからである。線の角度は真下から 30.5° になるので、当たる点は 18 × tan 30.5° = 10.6 m 先となり、本当の 15.4 m より約 5 m 手前になる。</p>
+<h4>経度の数字が大きく変わる理由</h4>
+<p>同じ 100 m 進んでも、経度の数字は緯度の数字より大きく変わる。この緯度では、経度の 1° が 99.6 km であり、緯度の 1° の 111.3 km より短いからである。</p>
 
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>ドローンが機首を 10° 下げているのに、傾きを直さずに計算すると、人の位置は実際より手前・先のどちらにずれるか。</li>
-  <li>同じ 100 m でも、経度の変化は緯度の変化より大きくなる。なぜか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>手前である。機首が下がるとカメラも下を向くので、線が近くの海面に当たる。線の角度は真下から 30.5° になるので、当たる点は 18 × tan 30.5° = 10.6 m 先となり、本当の 15.4 m より約 5 m 手前になる。</li>
-  <li>経度の 1° が、この緯度では 99.6 km と、緯度の 1°(111.3 km)より短いからである。1° が短いぶん、同じ 100 m 進んでも経度の数字のほうが大きく変わる。</li>
-</ol>
 </div>
-</div>
-
 <!-- ======================= 11章 ======================= -->
 <div class="chapter">
-<h2>11 章 mission の状態の流れ</h2>
+<h2>11 章 mission の状態遷移</h2>
 <p>mission(<code>mission_node.py</code>)は、0.1 秒ごとに <code>_on_timer</code>(316 行目)を呼ばれる。そのたびに、今の状態(<code>self.state</code>)に応じて 1 段階だけ仕事をし、条件がそろったら次の状態へ切り替える(<code>_goto</code>)。この章では、捜索から見守りまでの流れをコードで追う。離陸までは 8.5 節で説明した。</p>
-
-<h3>11.1 状態の全体図</h3>
+<h3>11.1 状態遷移図</h3>
+<p>mission の状態の流れを、図 11-1 に示す。確認の状態を紫で、人の判断をオレンジで、見守りの状態を緑で表した。候補が見つかると、mission は、どの捜索の段階からでも確認に入る。</p>
 <figure>
 <svg viewBox="0 0 680 400">
 <defs><marker id="c11" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5"/></marker></defs>
@@ -1225,17 +1242,12 @@ conf = scores.max(1)                     # その確信度</pre>
 <text class="ts" x="483" y="90">全員にボード到着</text><text class="ts" x="483" y="106">または捜索を完了</text>
 <text class="ts" x="160" y="120">移動中に候補</text>
 </svg>
-<figcaption>図 11-1 mission の状態の流れ。紫は確認、オレンジは人の判断、緑は見守り。候補が見つかると、どの捜索の段階からでも確認に入る</figcaption>
+<figcaption>図 11-1 mission の状態の流れ</figcaption>
 </figure>
-
-<h3>11.2 検出の振り分け(<code>_on_detections</code>、192 行目)</h3>
+<h3>11.2 検出結果の振り分け</h3>
+<p>この処理は、<code>mission_node.py</code> の 192 行目にある <code>_on_detections</code> で行う。</p>
 <p>detector から検出が届くと、今の状態によって 2 通りに使い分ける。</p>
-<table>
-  <caption>表 11-1 検出の使い方</caption>
-  <tr><th style="width:30%">今の状態</th><th>使い方</th></tr>
-  <tr><td>再確認・見守り(OBSERVE・ESCORT)</td><td>今見ている人の<b>予測位置から 5 m 以内</b>の検出だけを、その人の観測(<code>tg.obs</code>)に加える。ほかの検出は使わない</td></tr>
-  <tr><td>捜索・移動・上昇など</td><td>確信度 0.45 以上の検出を<b>候補</b>にする(<code>_add_candidate</code>)</td></tr>
-</table>
+<p>今の状態ごとの検出の使い方を、表 11-1 にまとめる。</p>
 <p><code>_add_candidate</code>(207 行目)は、次の 2 つを捨ててから、新しい候補 T を作る。</p>
 <ol>
   <li>1 つ目は、北 −8 m より陸側の検出である。これは砂浜と、水際で待っているボードの周りである。浜にいる人やボードの上の物を、遭難者と間違えないためである。</li>
@@ -1248,23 +1260,30 @@ conf = scores.max(1)                     # その確信度</pre>
     self.current = tg
     pn, pe = tg.predict(time.time(), self.vn, self.ve)
     self.bearing = math.atan2(pe - self.pos.y, pn - self.pos.x)   # 人の方向。確認と見守りの間、機首をこの向きに固定する</pre>
-
-<h3>11.3 確認(APPROACH → DESCEND → OBSERVE、382〜416 行目)</h3>
 <table>
-  <caption>表 11-2 確認の 3 つの状態</caption>
-  <tr><th style="width:18%">状態</th><th>目的地</th><th style="width:30%">次へ進む条件</th></tr>
-  <tr><td>APPROACH</td><td>人の予測位置の手前 10.4 m、高度 18 m(<code>_standoff</code>)</td><td>2.5 m 以内に着いた</td></tr>
-  <tr><td>DESCEND</td><td>人の予測位置の手前 5.8 m、高度 10 m</td><td>2.5 m 以内に着いた。観測をいったん空にする</td></tr>
-  <tr><td>OBSERVE</td><td>同じ(人と一緒に流れる)</td><td>3 秒以上たって、確信度 0.60 以上の観測が 2 回以上 → 確定。6 秒たっても足りない → 棄却</td></tr>
+  <caption>表 11-1 検出の使い方</caption>
+  <tr><th style="width:30%">今の状態</th><th>使い方</th></tr>
+  <tr><td>再確認・見守り(OBSERVE・ESCORT)</td><td>今見ている人の<b>予測位置から 5 m 以内</b>の検出だけを、その人の観測(<code>tg.obs</code>)に加える。ほかの検出は使わない</td></tr>
+  <tr><td>捜索・移動・上昇など</td><td>確信度 0.45 以上の検出を<b>候補</b>にする(<code>_add_candidate</code>)</td></tr>
 </table>
-<p><code>_standoff</code>(274 行目)は、人の予測位置から、機首の向き(<code>self.bearing</code>)の逆へ「高度 × tan 30°」だけ戻った点を返す。これで、カメラの中心が人に向く。</p>
-<p><b>確定位置は、次のように求める。</b>OBSERVE の間、AI は 1 秒に 1 回、人の位置を測る。確定するときは、確信度 0.60 以上の観測を<b>今の時刻にそろえてから</b>平均する。</p>
+<h3>11.3 確認の状態</h3>
+<p>確認では、状態が APPROACH → DESCEND → OBSERVE の順に進む。この処理は、<code>mission_node.py</code> の 382〜416 行目に書いてある。</p>
+<p>確認は 3 つの状態に分かれる。それぞれの状態の目的地と、次の状態へ進む条件を、表 11-2 に示す。</p>
+<p><code>_standoff</code>(274 行目)は、遭難者の予測位置から、機首の向き(<code>self.bearing</code>)の逆へ「高度 × tan 30°」だけ戻った点を返す。これで、カメラの中心が人に向く。</p>
+<p><b>確定位置は、次のように求める。</b>OBSERVE の間、AI は 1 秒に 1 回、遭難者の位置を測る。確定するときは、確信度 0.60 以上の観測を<b>今の時刻にそろえてから</b>平均する。</p>
 <pre>ns = [o[0] + self.vn * (now - o[3]) for o in strong]   # 測った北 + 海流 × 測ってからの秒数
 es = [o[1] + self.ve * (now - o[3]) for o in strong]
 tg.north, tg.east, tg.t_est = sum(ns) / len(ns), sum(es) / len(es), now</pre>
 <p>2 秒前に測った値は「2 秒前にいた場所」なので、そのまま平均すると、人が流れてくる前の場所が混ざる。そこで、どの値にも「海流 × 測ってからの秒数」を足して、今いるはずの場所に直してから平均する。海流 0.25 m/秒なら、2 秒前の値には 0.5 m を足すことになる。</p>
-
-<h3>11.4 オペレータ(OPERATOR、418〜435 行目)</h3>
+<table>
+  <caption>表 11-2 確認の 3 つの状態</caption>
+  <tr><th style="width:18%">状態</th><th>目的地</th><th style="width:30%">次へ進む条件</th></tr>
+  <tr><td>APPROACH</td><td>遭難者の予測位置の手前 10.4 m、高度 18 m(<code>_standoff</code>)</td><td>2.5 m 以内に着いた</td></tr>
+  <tr><td>DESCEND</td><td>遭難者の予測位置の手前 5.8 m、高度 10 m</td><td>2.5 m 以内に着いた。観測をいったん空にする</td></tr>
+  <tr><td>OBSERVE</td><td>同じ(人と一緒に流れる)</td><td>3 秒以上たって、確信度 0.60 以上の観測が 2 回以上 → 確定。6 秒たっても足りない → 棄却</td></tr>
+</table>
+<h3>11.4 オペレータ待ちの状態</h3>
+<p>オペレータの判断を待つ状態を、OPERATOR と呼ぶ。この処理は、<code>mission_node.py</code> の 418〜435 行目に書いてある。</p>
 <pre>if elapsed_state >= c['operator_delay_s']:                         # 確定から 3 秒たった
     idle = [b for b in self.boards.values() if b['status'] == 'IDLE']   # 砂浜で待っているボード
     if not idle:
@@ -1276,8 +1295,8 @@ tg.north, tg.east, tg.t_est = sum(ns) / len(ns), sum(es) / len(es), now</pre>
     self._goto('ESCORT')</pre>
 <p>ボードの状態は、board ノードが 0.2 秒ごとに <code>/rescue/boards</code> へ流している。mission はそれを <code>self.boards</code> に覚えておき、待っているボード(<code>IDLE</code>)を探す。3 台とも発進していたら、どれかが空くまで待つ。今回の想定は 3 名・3 台なので、待つことはない。</p>
 <p>この間も、mission は高度 10 m で人を画面の中央に捉えている。映像を地上へ送っている想定の時間は、<code>self.video_s</code> に 0.1 秒ずつ足して数えている(327〜328 行目)。足すのは、APPROACH・DESCEND・OBSERVE・OPERATOR の 4 つの状態の間だけである。</p>
-
-<h3>11.5 見守り(ESCORT、437〜455 行目)</h3>
+<h3>11.5 見守りの状態</h3>
+<p>見守りの状態を、ESCORT と呼ぶ。この処理は、<code>mission_node.py</code> の 437〜455 行目に書いてある。</p>
 <pre>tg = self.current
 if tg.obs:
     last = tg.obs[-1]
@@ -1297,52 +1316,46 @@ if b and b['status'] == 'HOLD' and b['target'] == tg.id:          # ボードが
   <li><b>送るのは推定位置・推定時刻・海流</b>(<code>_send_lora</code>、185 行目)。今の予測位置ではなく、推定した時点の値と時刻を送る。ボードが自分で「今」の位置を予測するので、LoRa の遅れ(約 86 ms)の分も自動で補われる。</li>
 </ul>
 <p>ボードが止まると、CLIMB で高度 18 m に戻り、RESUME で捜索を中断した地点へ戻ってから、拡大方形捜索の続きを飛ぶ。SEARCH と RESUME の間、0.1 秒ごとに「ボードが着いた人の数が、通報された 3 名に達したか」を確かめ、達したら帰還する(367〜369 行目)。</p>
+<h3>11.6 設計上の考慮点</h3>
+<h4>見守り中の見間違いの影響</h4>
+<p>見守り中に、AI が隣の木材を人と見間違えることがある。木材が予測位置から 5 m より離れていれば、観測に加えないので、推定位置は変わらない。ただし、5 m 以内だと推定位置がずれる。今回の想定では、見守り中にそうなったことはない。</p>
+<h4>確定からボードの発進までの時間</h4>
+<p>確定からボードの発進までは、最短で 3 秒かかる。この時間は <code>operator_delay_s</code> で決めている。報告書では、3 回とも 3.1 秒だった。mission は 0.1 秒ごとにしか判定しないので、少し長くなる。</p>
+<h4>ボードが足りない場合</h4>
+<p>3 人目を見つける前に、ボードが 3 台とも発進していた場合は、mission は OPERATOR の状態のまま上空で待つ。そして、どれかのボードが空くまで、次のボードを発進させない。ただし、到着したボードは浮き具として遭難者のそばに残る設計である。従って、実際には、4 人目以降のためのボードを別に用意する必要がある。</p>
 
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>見守り中に、AI がたまたま隣の木材を人と見間違えた。T の推定位置は変わるか。</li>
-  <li>確定からボードの発進まで、最短で何秒かかるか。</li>
-  <li>3 人目を見つける前に、ボードが 3 台とも発進していたらどうなるか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>木材が予測位置から 5 m より離れていれば、観測に加えないので変わらない。5 m 以内だと、推定位置がずれる。今回の想定では、見守り中にそうなったことはない。</li>
-  <li>3 秒である(<code>operator_delay_s</code>)。報告書では、3 回とも 3.1 秒だった。0.1 秒ごとにしか判定しないので、少し長くなる。</li>
-  <li>OPERATOR のまま上空で待ち、どれかのボードが空くまで、次のボードを発進させない。ただし、到着したボードは浮き具として遭難者のそばに残る設計なので、実際には 4 人目以降のためのボードを別に用意する必要がある。</li>
-</ol>
 </div>
-</div>
-
 <!-- ======================= 12章 ======================= -->
 <div class="chapter">
-<h2>12 章 lora_link_node:LoRa 無線のまね</h2>
+<h2>12 章 LoRa 通信の模擬</h2>
 <pre>ドローン(mission) → /rescue/lora/tx → [lora_link] → /rescue/lora/rx → ボード(board)</pre>
 <p>本物の LoRa 無線の「遅れる」「ときどき届かない」というくせをまねている。lora_link は、届いたメッセージをそのまま渡さずに、遅らせたり、捨てたりしてから渡す。</p>
-
-<h3>12.1 1 回の送信にかかる時間</h3>
+<h3>12.1 送信時間の計算</h3>
 <p>LoRa は、遠くまで届くかわりに、とてもゆっくり送る無線である。送る時間は、Semtech 社の資料(AN1200.13)の式で計算できる(<code>lora_airtime_s</code>、20 行目)。</p>
+<p>SF7・帯域幅 125 kHz で 24 バイトを送るときの計算を、表 12-1 に示す。</p>
+<p>③ の 16 は誤り検出(CRC)あり、(1 + 4) は符号化率 4/5 を表す。SF(拡散率)を大きくすると、1 つの記号が 2 倍ずつ長くなり、遠くまで届くが時間がかかる。</p>
+<p>SF を変えると、送信時間がどう変わるかを、表 12-2 に示す。値は、24 バイトを帯域幅 125 kHz で送る場合である。</p>
+<p>SF12 では 1 回に 1.48 秒かかるので、1 秒ごとに送ることはできない。海水浴場の範囲(数百 m)なら SF7 で届くと考え、SF7 にした。</p>
 <table>
-  <caption>表 12-1 SF7・帯域幅 125 kHz で 24 バイトを送る時間の計算</caption>
+  <caption>表 12-1 24 バイトを送る時間の計算</caption>
   <tr><th style="width:36%">段階</th><th>計算</th></tr>
   <tr><td>① 1 つの記号(シンボル)を送る時間</td><td>2<sup>SF</sup> ÷ 帯域幅 = 128 ÷ 125,000 = 1.024 ms</td></tr>
   <tr><td>② 前置き(プリアンブル)</td><td>(8 + 4.25) 記号 = 12.25 記号</td></tr>
   <tr><td>③ データの記号の数</td><td>8 + ⌈(8 × 24 − 4 × 7 + 28 + 16) ÷ (4 × 7)⌉ × (1 + 4) = 8 + ⌈208 ÷ 28⌉ × 5 = 8 + 8 × 5 = 48 記号</td></tr>
   <tr><td>④ 合計</td><td>(12.25 + 48) × 1.024 ms = <b>61.7 ms</b></td></tr>
 </table>
-<p>③ の 16 は誤り検出(CRC)あり、(1 + 4) は符号化率 4/5 を表す。SF(拡散率)を大きくすると、1 つの記号が 2 倍ずつ長くなり、遠くまで届くが時間がかかる。</p>
 <table>
-  <caption>表 12-2 SF による送信時間の違い(24 バイト、帯域幅 125 kHz)</caption>
+  <caption>表 12-2 SF による送信時間の違い</caption>
   <tr><th class="c">SF</th><th class="c">7</th><th class="c">8</th><th class="c">9</th><th class="c">10</th><th class="c">11</th><th class="c">12</th></tr>
   <tr><td class="c">送信時間</td><td class="c">61.7 ms</td><td class="c">113 ms</td><td class="c">206 ms</td><td class="c">371 ms</td><td class="c">823 ms</td><td class="c">1483 ms</td></tr>
 </table>
-<p>SF12 では 1 回に 1.48 秒かかるので、1 秒ごとに送ることはできない。海水浴場の範囲(数百 m)なら SF7 で届くと考え、SF7 にした。</p>
-
-<h3>12.2 24 バイトの数え方(<code>_on_tx</code>、57 行目)</h3>
+<h3>12.2 パケット長の計算</h3>
+<p>この処理は、<code>lora_link_node.py</code> の 57 行目にある <code>_on_tx</code> で行う。</p>
 <pre>payload = 4 + 4 * sum(1 for v in d.values() if isinstance(v, (int, float)))</pre>
 <p>シミュレーションの中では、メッセージは JSON の文字列で、数十〜百バイトある。実機では、必要な数値だけをバイナリに詰めて送る。そこで、JSON の中の<b>数値の項目</b>(北・東・推定時刻・海流の北・東の 5 つ)を 4 バイトずつと数え、種類・宛先・対象をまとめた 4 バイトを足して、24 バイトとしている。</p>
-
-<h3>12.3 遅らせる・捨てる</h3>
+<h3>12.3 遅延とパケットロスの模擬</h3>
+<p>lora_link が、届いたメッセージをどのように遅らせ、捨てるかを、表 12-3 にまとめる。</p>
+<p>計算上の遅れは 81.7 ms だが、実測の平均は 85〜86 ms だった。差の約 4 ms は、5 ms ごとにしか確かめないことによる待ち(平均 2.5 ms)と、ROS 2 の受け渡しの時間である。</p>
 <table>
   <caption>表 12-3 LoRa のまね</caption>
   <tr><th style="width:18%">くせ</th><th>中身</th></tr>
@@ -1350,8 +1363,6 @@ if b and b['status'] == 'HOLD' and b['target'] == tg.id:          # ボードが
   <tr><td>遅らせる</td><td>捨てなかったものは、「今の時刻 + 送信時間 61.7 ms + 処理の遅れ 20 ms」を渡す時刻としてためておく</td></tr>
   <tr><td>渡す</td><td>5 ms ごとに(<code>_deliver</code>)、渡す時刻を過ぎたものを /rescue/lora/rx に流す。実際に遅れた時間を記録する</td></tr>
 </table>
-<p>計算上の遅れは 81.7 ms だが、実測の平均は 85〜86 ms だった。差の約 4 ms は、5 ms ごとにしか確かめないことによる待ち(平均 2.5 ms)と、ROS 2 の受け渡しの時間である。</p>
-
 <h3>12.4 乱数の種</h3>
 <pre>self.declare_parameter('seed', -1)        # 負なら実行のたびに変える
 seed = self.get_parameter('seed').value
@@ -1360,10 +1371,13 @@ if seed < 0:
 random.seed(seed)</pre>
 <p>くじの出方は、乱数の種で決まる。種が同じなら、毎回同じ順番に同じくじが出る。前は種を 1 に固定していたので、3 回の実行とも同じ 7 回(98 回中)を捨て、届いた割合はどれも 92.9% だった。3% なら捨てるのは平均 2.9 回なので、運の悪いくじを 3 回とも使っていたことになる。</p>
 <p>今は、種を<b>起動した時刻(ミリ秒)</b>から作るので、実行のたびにくじが変わる。使った種は統計に入れて記録する。同じ結果を再現したいときは、<code>params.yaml</code> の <code>seed</code> にその値を書けばよい。</p>
-
-<h3>12.5 統計(<code>_publish_stats</code>、80 行目)</h3>
+<h3>12.5 通信統計</h3>
+<p>この処理は、<code>lora_link_node.py</code> の 80 行目にある <code>_publish_stats</code> で行う。</p>
 <p>1 秒ごとに、次の値を /rescue/lora/stats に流す。mission はこれを報告書の <code>lora</code> に入れる。</p>
+<p>lora_link が 1 秒ごとに流す統計の項目と、1 回目の実行での値を、表 12-4 に示す。</p>
+<p>このノードがまねしていないことは、次のとおりである。距離や障害物による届きやすさの変化、3 台に同時に送ったときの電波のぶつかり合い、日本の 920 MHz 帯の送信時間の規則による待ち、再送。どれも実機では確かめる必要がある。</p>
 <table>
+  <caption>表 12-4 lora_link が流す統計</caption>
   <tr><th style="width:24%">項目</th><th>意味</th><th style="width:22%">1 回目の値</th></tr>
   <tr><td>n_tx / n_rx</td><td>送信数 / 受信数</td><td>98 / 94</td></tr>
   <tr><td>airtime_s</td><td>送信時間の合計</td><td>6.046 s</td></tr>
@@ -1371,46 +1385,37 @@ random.seed(seed)</pre>
   <tr><td>delay_ms_mean / max</td><td>実際に遅れた時間の平均 / 最大</td><td>85.0 / 86.7 ms</td></tr>
   <tr><td>seed</td><td>使った乱数の種</td><td>1388523232</td></tr>
 </table>
-<div class="note"><b>このノードがまねしていないことは、次のとおりである。</b>距離や障害物による届きやすさの変化、3 台に同時に送ったときの電波のぶつかり合い、日本の 920 MHz 帯の送信時間の規則による待ち、再送。どれも実機では確かめる必要がある。</div>
+<h3>12.6 設計上の考慮点</h3>
+<h4>SF を大きくした場合</h4>
+<p>SF を 7 から 10 に変えると、1 回の送信時間は 61.7 ms から 371 ms になる。届くまでの遅れは、処理の 20 ms を足して約 391 ms になる。それでも、1 秒ごとの送信には間に合う。</p>
+<h4>乱数の種を固定した場合</h4>
+<p>乱数の種を 1 に固定して 3 回実行すると、3 回とも同じくじになり、同じ回数だけ捨てる。送信の回数とタイミングが同じなら、届いた割合も 3 回とも同じになる。</p>
 
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>SF を 7 から 10 に変えると、1 回の送信時間と、届くまでの遅れはどうなるか。</li>
-  <li>seed を 1 に戻して 3 回実行すると、届いた割合はどうなるか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>送信時間は 61.7 ms から 371 ms になり、遅れは約 391 ms(+ 処理 20 ms)になる。1 秒ごとの送信にはまだ間に合う。</li>
-  <li>3 回とも同じくじになり、同じ回数だけ捨てる。送信の回数とタイミングが同じなら、届いた割合も 3 回とも同じになる。</li>
-</ol>
 </div>
-</div>
-
 <!-- ======================= 13章 ======================= -->
 <div class="chapter">
-<h2>13 章 board_node:フォイルボード 3 台の動き</h2>
-<div class="note"><b>ボードは Gazebo の物理計算で動いているのではない。</b>このノードが 0.05 秒ごとに「次はどこにいるか」を自分で計算し、その位置に Gazebo の上のボードを置き直している(<code>set_pose_vector</code>)。ドローンは本物に近い物理計算で飛んでいるが、ボードは速さと曲がり方の上限だけを持つ簡単な計算で動かしている。Gazebo の上のボードは、重力も当たり判定もないモデルである。</div>
-
-<h3>13.1 1 台のボードが持つ値</h3>
+<h2>13 章 フォイルボードの制御</h2>
+<p>ボードは、Gazebo の物理計算で動いているのではない。このノードが 0.05 秒ごとに「次はどこにいるか」を自分で計算し、その位置に Gazebo の上のボードを置き直している(<code>set_pose_vector</code>)。ドローンは本物に近い物理計算で飛んでいるが、ボードは速さと曲がり方の上限だけを持つ簡単な計算で動かしている。Gazebo の上のボードは、重力も当たり判定もないモデルである。</p>
+<h3>13.1 ボードの状態変数</h3>
+<p>1 台のボードが持つ主な値を、表 13-1 に示す。これらの値は、<code>board_node.py</code> の 42 行目にある <code>class Board</code> で決めている。</p>
 <table>
-  <caption>表 13-1 <code>class Board</code>(42 行目)の主な値</caption>
+  <caption>表 13-1 class Board の主な値</caption>
   <tr><th style="width:22%">値</th><th>意味</th></tr>
-  <tr><td><code>n, e, psi</code></td><td>位置(北・東)と向き。向きは北を 0 として時計回りのラジアン</td></tr>
+  <tr><td><code>n, e, psi</code></td><td>ボードの位置(北・東)と向き。向きは北を 0 として時計回りのラジアン</td></tr>
   <tr><td><code>u, r</code></td><td>水に対する速さ [m/秒] と、曲がる速さ [rad/秒]</td></tr>
   <tr><td><code>z</code></td><td>船体の高さ。0.05 m で浮かんでいて、離水すると 0.32 m になる</td></tr>
   <tr><td><code>status</code></td><td>IDLE(砂浜で待機)・TRANSIT(航行中)・APPROACH(接近)・HOLD(止まって待機)</td></tr>
   <tr><td><code>target</code></td><td>LoRa で届いた遭難者の推定位置・推定時刻・海流</td></tr>
 </table>
-
-<h3>13.2 LoRa を受け取る(<code>_on_rx</code>、84 行目)</h3>
+<h3>13.2 LoRa メッセージの受信</h3>
+<p>この処理は、<code>board_node.py</code> の 84 行目にある <code>_on_rx</code> で行う。</p>
 <ul>
   <li><code>dispatch</code>(ボードの発進)は、そのボードが <b>IDLE のときだけ</b>受け付ける。状態を TRANSIT にして走り出す。</li>
-  <li><code>update</code>(位置の更新)は、<b>今向かっている遭難者のものだけ</b>受け付け、<code>target</code> を置き換える。</li>
+  <li><code>update</code>(遭難者の位置の更新)は、<b>今向かっている遭難者のものだけ</b>受け付け、<code>target</code> を置き換える。</li>
 </ul>
-<p>位置の更新が届かなかった 1 秒の間も、ボードは前に届いた位置・時刻・海流から予測して進み続ける。</p>
-
-<h3>13.3 狙う点を決める(<code>_guidance</code>、99〜111 行目)</h3>
+<p>遭難者の位置の更新が届かなかった 1 秒の間も、ボードは前に届いた位置・時刻・海流から予測して進み続ける。</p>
+<h3>13.3 先回り誘導の計算</h3>
+<p>この処理は、<code>board_node.py</code> の 99〜111 行目にある <code>_guidance</code> で行う。</p>
 <pre>pn = t['north'] + t['vn'] * (now - t['t_est'])     # ① 今の人の位置(予測)
 pe = t['east']  + t['ve'] * (now - t['t_est'])
 d = math.hypot(pn - b.n, pe - b.e)                 #    ボードからの距離
@@ -1420,16 +1425,20 @@ pe += t['ve'] * t_go
 an = pn - s * (pn - b.n) / d                       # ④ そこからボードの側へ 2 m 手前
 ae = pe - s * (pe - b.e) / d</pre>
 <p>例として、人が北 −145 m・東 −23 m にいて、ボードが水際(北 −5 m・東 12 m)を出るときを計算する。距離は 144.3 m である。</p>
+<p>ボードの速さによって、狙う点がどれだけ先になるかを、表 13-2 に示す。海流は 0.25 m/秒・方位 200° である。</p>
+<p>出発直後は、まだ遅いので「着くまでに 72 秒かかる」と見積もり、18 m 先を狙う。速くなるにつれて見積もりが短くなり、狙う点は手前へ戻ってくる。近づくほど「着くまでの時間」は 0 に近づくので、最後は人の今の位置の 2 m 手前を狙うことになる。</p>
 <table>
-  <caption>表 13-2 ボードの速さによって、狙う点がどれだけ先になるか(海流 0.25 m/秒・方位 200°)</caption>
+  <caption>表 13-2 ボードの速さと狙う点の位置</caption>
   <tr><th class="c">ボードの速さ</th><th class="c">着くまでの時間</th><th class="c">その間に人が流れる距離</th><th class="c">狙う点のずれ(北・東)</th></tr>
   <tr><td class="c">0〜2 m/秒(出発直後)</td><td class="c">72.2 秒</td><td class="c">18.0 m</td><td class="c">−16.9 m・−6.2 m</td></tr>
   <tr><td class="c">4 m/秒</td><td class="c">36.1 秒</td><td class="c">9.0 m</td><td class="c">−8.5 m・−3.1 m</td></tr>
   <tr><td class="c">6 m/秒(最高)</td><td class="c">24.1 秒</td><td class="c">6.0 m</td><td class="c">−5.6 m・−2.1 m</td></tr>
 </table>
-<p>出発直後は、まだ遅いので「着くまでに 72 秒かかる」と見積もり、18 m 先を狙う。速くなるにつれて見積もりが短くなり、狙う点は手前へ戻ってくる。近づくほど「着くまでの時間」は 0 に近づくので、最後は人の今の位置の 2 m 手前を狙うことになる。</p>
-
-<h3>13.4 0.05 秒ごとの動き(<code>_step</code>、113〜153 行目)</h3>
+<h3>13.4 運動の更新</h3>
+<p>この処理は、<code>board_node.py</code> の 113〜153 行目にある <code>_step</code> で行う。</p>
+<p>ボード 1 台ずつについて、0.05 秒ごとに決めることを、表 13-3 にまとめる。</p>
+<p>P 制御の P は Proportional(比例)である。ずれに比例した強さで直すので、ずれが大きいときは速く、小さくなるとゆっくり曲がり、行き過ぎにくい。</p>
+<p>止まったあと(HOLD)も、ボードは海流に流され続ける。人も同じ海流で流れるので、2 m の距離は保たれる。これが「浮き具として一緒に流れる」の中身である。</p>
 <table>
   <caption>表 13-3 ボード 1 台ずつ決めること</caption>
   <tr><th style="width:16%">決めること</th><th>中身</th><th style="width:26%">数字の例</th></tr>
@@ -1437,72 +1446,64 @@ ae = pe - s * (pe - b.e) / d</pre>
   <tr><td>② 進む速さ</td><td>狙う点まで 25 m より遠ければ最高の 6 m/秒。近いほど遅くする。速さは「距離 ÷ 25 × 6」m/秒とし、0.8 m/秒より遅くはしない。向きのずれが 60° を超えたら 4 割に落とす。加速は 1 秒に 1.5 m/秒、減速は 1 秒に 3 m/秒まで</td><td>12.5 m なら 3 m/秒。止まっている状態から 6 m/秒までは 4 秒</td></tr>
   <tr><td>③ 浮くか</td><td>4 m/秒を超えると、船体の高さを 0.32 m へ、1 秒に 0.3 m の速さで上げる(離水)</td><td>0.05 m から 0.32 m まで約 0.9 秒</td></tr>
   <tr><td>④ 止まるか</td><td>狙う点まで 0.8 m 以内なら止まる(HOLD)。速さと曲がる速さを 0 にし、到着の時刻を記録する</td><td>人からは約 2 m の所で止まる</td></tr>
-  <tr><td>⑤ 位置を進める</td><td>北へ「速さ × cos(向き) + 海流の北向き」× 0.05 秒、東へ「速さ × sin(向き) + 海流の東向き」× 0.05 秒。砂浜で待っている間(IDLE)は海流に流されない</td><td>6 m/秒・南向きなら 0.05 秒で南へ 0.3 m</td></tr>
+  <tr><td>⑤ ボードの位置を進める</td><td>北へ「速さ × cos(向き) + 海流の北向き」× 0.05 秒、東へ「速さ × sin(向き) + 海流の東向き」× 0.05 秒。砂浜で待っている間(IDLE)は海流に流されない</td><td>6 m/秒・南向きなら 0.05 秒で南へ 0.3 m</td></tr>
 </table>
-<p>P 制御の P は Proportional(比例)である。ずれに比例した強さで直すので、ずれが大きいときは速く、小さくなるとゆっくり曲がり、行き過ぎにくい。</p>
-<p>止まったあと(HOLD)も、ボードは海流に流され続ける。人も同じ海流で流れるので、2 m の距離は保たれる。これが「浮き具として一緒に流れる」の中身である。</p>
-
-<h3>13.5 Gazebo に見せる(<code>_send_poses</code>、155〜173 行目)</h3>
+<h3>13.5 Gazebo への表示</h3>
+<p>この処理は、<code>board_node.py</code> の 155〜173 行目にある <code>_send_poses</code> で行う。</p>
 <ul>
   <li>座標を直す。計算は NED(北・東)で行い、Gazebo には ENU(x = 東、y = 北)で渡す。向きも「東から反時計回り」に直す(<code>yaw_enu = π/2 − psi</code>)。</li>
   <li>見た目の傾きをつける。曲がるときは内側に傾け(曲がる速さと進む速さに比例)、離水の途中は少し機首を上げる。計算には使わない、見た目だけの傾きである。</li>
   <li>発光マーカーを出し入れする。止まるまでは水面の 20 m 下に隠しておき、HOLD になったらボードの上 0.15 m に出す。</li>
   <li>3 台のボードと 3 個のマーカーの 6 つの位置を、1 回の要求(<code>set_pose_vector</code>)でまとめて送る。</li>
 </ul>
-<p>0.2 秒ごと(4 回に 1 回)に、3 台の位置・速さ・状態・航跡を <code>/rescue/boards</code> に流す(<code>_publish_state</code>)。mission はこれで到着を知り、dashboard は地図に航跡を描く。</p>
+<p>0.2 秒ごと(4 回に 1 回)に、3 台のボードの位置・速さ・状態・航跡を <code>/rescue/boards</code> に流す(<code>_publish_state</code>)。mission はこれで到着を知り、dashboard は地図に航跡を描く。</p>
+<h3>13.6 設計上の考慮点</h3>
+<h4>出発直後に先を狙う理由</h4>
+<p>出発直後のボードは、人よりかなり先を狙う。速さが 2 m/秒未満のときは 2 m/秒として、着くまでの時間を長めに見積もるからである。ただし、狙う点は 0.05 秒ごとに計算し直すので、速くなれば狙う点はすぐ手前へ戻る。従って、最初に向く方向が少し下流寄りになるだけで、困ることはない。</p>
+<h4>狙う点の計算例</h4>
+<p>たとえば、人まで 120 m あり、ボードが 6 m/秒で走るとする。着くまでの時間は 120 ÷ 6 = 20 秒で、その間に人は 0.25 × 20 = 5 m 流れる。従って、狙う点は人の今の位置から 5 m 先であり、ボードはその点の 2 m 手前を狙う。</p>
+<h4>2 m 手前で止める理由</h4>
+<p>ボードは、人の真上ではなく、2 m 手前で止まる。ボードが遭難者にぶつかって、けがをさせないためである。止まったあとは浮き具として、遭難者がつかまれる距離で待つ。</p>
 
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>出発直後のボードが、人よりかなり先を狙うのはなぜか。それで困らないのはなぜか。</li>
-  <li>人まで 120 m、ボードが 6 m/秒のとき、狙う点は人の今の位置から何 m 先か(海流 0.25 m/秒)。</li>
-  <li>ボードが人の真上ではなく、2 m 手前で止まるのはなぜか。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>速さが 2 m/秒未満のときは 2 m/秒として「着くまでの時間」を長めに見積もるからである。0.05 秒ごとに計算し直すので、速くなれば狙う点はすぐ手前へ戻る。最初に向く方向が少し下流寄りになるだけである。</li>
-  <li>着くまで 120 ÷ 6 = 20 秒、0.25 × 20 = 5 m 先である。その点の 2 m 手前を狙う。</li>
-  <li>ボードが遭難者にぶつかってけがをさせないためである。止まったあとは浮き具として、遭難者がつかまれる距離で待つ。</li>
-</ol>
 </div>
-</div>
-
 <!-- ======================= 14章 ======================= -->
 <div class="chapter">
-<h2>14 章 評価と動画の作り方</h2>
-
-<h3>14.1 本当の位置を記録する(<code>scripts/truth_logger.py</code>)</h3>
+<h2>14 章 評価と動画作成</h2>
+<h3>14.1 正解位置の記録</h3>
+<p>記録は、<code>scripts/truth_logger.py</code> が行う。</p>
 <p>Gazebo は、動くモデルの位置を <code>/world/sea_board/dynamic_pose/info</code> という gz-transport のトピックに流している。truth_logger はこれを聞き、名前が <code>person_</code>・<code>board_</code>・<code>beacon_</code> で始まるものの位置を、0.5 秒ごとに 1 行ずつ書き出す。</p>
 <pre>{"t": 1792389895.17, "poses": {"person_P1": [-99.952, -3.085], "board_B1": [-5.0, 12.0], ...}}</pre>
 <p>これは 1 回目の出動の約 5 秒後の 1 行である。P1 は北 −100.0 m・東 −3.1 m にいて、B1 はまだ水際で待っている。</p>
 <ul>
-  <li>位置は Gazebo の ENU から NED に直し、[北, 東] の順で書く。</li>
+  <li>記録する位置は、Gazebo の ENU から NED に直し、[北, 東] の順で書く。</li>
   <li>時刻 <code>t</code> は UNIX 時刻である。mission の報告書の時刻と同じ時計なので、照らし合わせられる。</li>
   <li>ROS 2 ではなく gz-transport で直接聞くので、AI と制御のノードとはまったくつながっていない。</li>
 </ul>
-
-<h3>14.2 採点する(<code>tests/evaluate_mission.py</code>)</h3>
+<h3>14.2 遭難者の推定位置と正解位置の比較</h3>
+<p>評価は、<code>tests/evaluate_mission.py</code> が行う。</p>
+<p><code>tests/evaluate_mission.py</code> が評価する手順を、表 14-1 に示す。</p>
 <table>
-  <caption>表 14-1 採点の手順</caption>
+  <caption>表 14-1 評価の手順</caption>
   <tr><th style="width:26%">段階</th><th>中身</th></tr>
   <tr><td>正解の記録を選ぶ</td><td>報告書の出動時刻(<code>t_start</code>)より前に書き始めた truth_*.jsonl のうち、一番新しいもの。<code>--truth</code> で指定もできる</td></tr>
-  <tr><td>補間</td><td>求めたい時刻の前後 2 行の位置を、時刻の割合で結ぶ(<code>Truth.at</code>)。0.5 秒の間を直線で補う</td></tr>
+  <tr><td>補間</td><td>求めたい時刻の前後 2 行の正解位置を、時刻の割合で結ぶ(<code>Truth.at</code>)。0.5 秒の間を直線で補う</td></tr>
   <tr><td>T と P の対応</td><td>確定した時刻に一番近くにいた P を選び、最後の推定位置と、同じ時刻の P の位置が 5 m 以内なら対応させる。1 人の P には 1 つの T だけ</td></tr>
-  <tr><td>ボードとの距離</td><td>ボードが止まった 1 秒後の、ボードと P の本当の位置の距離</td></tr>
+  <tr><td>ボードとの距離</td><td>ボードが止まった 1 秒後の、ボードと P の正解位置の距離</td></tr>
   <tr><td>事案発生の時刻</td><td>出動時刻 − 120 秒。Gazebo の起動待ちの時間は含めない</td></tr>
   <tr><td>出力</td><td>表を画面に出し、軌跡の地図を報告書と同じ名前の PNG に描く(レポート編 図 4-1)</td></tr>
 </table>
-
-<h3>14.3 録画する(<code>scripts/record_demo.sh</code>)</h3>
+<h3>14.3 録画</h3>
+<p>録画は、<code>scripts/record_demo.sh</code> が行う。</p>
 <ol>
   <li>ffmpeg で画面全体(2 つのモニタ)を録画し始める。左のモニタに dashboard、右のモニタに Gazebo の 3D 画面を出している。</li>
   <li>録画を始めた時刻を <code>録画.start</code> に書いておく。動画を切る位置の計算に使う。</li>
   <li>2 秒後に AI 一式(<code>start_ai.sh</code>)を起動する。</li>
   <li>新しい報告書(mission_*.json)ができたら、4 秒待って録画を止める。</li>
 </ol>
-<div class="note"><b>起動の順番と時間には注意が必要である。</b>遭難者は Gazebo を起動した瞬間から流れ始める(レポート編 1.6 節)。<code>start_sim.sh</code> から <code>record_demo.sh</code> までを約 30 秒以内に続けて行う。録画し直した最初の 3 回は、待ち時間が約 55 秒になり、3 人目が捜索範囲から外れて見つからなかった。</div>
-
-<h3>14.4 動画を作る(<code>scripts/make_video.sh</code>)</h3>
+<p>起動の順番と時間には、注意が必要である。遭難者は Gazebo を起動した瞬間から流れ始める(レポート編 1.6 節)。<code>start_sim.sh</code> から <code>record_demo.sh</code> までを約 30 秒以内に続けて行う。録画し直した最初の 3 回は、待ち時間が約 55 秒になり、3 人目が捜索範囲から外れて見つからなかった。</p>
+<h3>14.4 動画の作成</h3>
+<p>動画は、<code>scripts/make_video.sh</code> が作る。</p>
+<p><code>make_video.sh</code> が動画をどう組み立てるかを、表 14-2 に示す。</p>
 <table>
   <caption>表 14-2 動画の組み立て</caption>
   <tr><th style="width:22%">段階</th><th>中身</th></tr>
@@ -1512,21 +1513,13 @@ ae = pe - s * (pe - b.e) / d</pre>
   <tr><td>前後のカード</td><td>前にタイトル(5 秒)、後ろに結果(7 秒)を付ける。文字は <code>make_cards.py</code> が Pillow で描き、結果の数字は evaluate_mission.py の出力をそのまま使う</td></tr>
   <tr><td>できあがり</td><td>5 + 158 + 7 = 170 秒(2 分 50 秒)。課題の条件(1〜3 分)に収まる</td></tr>
 </table>
+<h3>14.5 設計上の考慮点</h3>
+<h4>truth_logger が救助に影響しないこと</h4>
+<p>truth_logger を止めて実行しても、救助の結果は変わらない。truth_logger はどのノードともつながっていないからである。止めると、評価ができなくなるだけである。</p>
+<h4>再生速度と動画の長さ</h4>
+<p>本編は、録画の 316.5 秒目までである。たとえば 3 倍速にすると、本編は 316.5 ÷ 3 ≒ 106 秒になり、前後のカード 5 秒と 7 秒を足して、全体は 118 秒になる。</p>
 
-<div class="quiz">
-<h4>確認問題</h4>
-<ol>
-  <li>truth_logger を止めて実行すると、救助の結果は変わるか。</li>
-  <li>動画を 3 倍速にすると、全体は何秒になるか(本編は録画の 316.5 秒目まで)。</li>
-</ol>
-<h4>答え</h4>
-<ol>
-  <li>変わらない。truth_logger はどのノードともつながっていないからである。採点ができなくなるだけである。</li>
-  <li>本編は 316.5 ÷ 3 ≒ 106 秒、カードを足して 5 + 106 + 7 = 118 秒になる。</li>
-</ol>
-</div>
 <p style="margin-top:6mm; color: var(--sub);">(解説資料はここまで)</p>
 </div>
-
 </body>
 </html>

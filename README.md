@@ -3,7 +3,7 @@
 Physical AI 応用講座1 の最終課題である(omnicampus アカウント: ba2vwbus)。ドローンが AI(YOLO11m)で遭難者を見つけ、無人のフォイルボードが遭難者のもとへ駆けつける。PX4 SITL・Gazebo Harmonic・ROS 2 Humble の上で動かしている。
 
 - 説明資料: [docs/説明資料.pdf](docs/説明資料.pdf)
-- 解説資料: [レポート編](docs/解説資料_レポート編.pdf)(想定・工夫・結果の詳しい説明、38 ページ)、[実装編](docs/解説資料_実装編.pdf)(プログラムの中身、43 ページ)
+- 解説資料: [レポート編](docs/解説資料_レポート編.pdf)(想定・工夫・結果の詳しい説明、39 ページ)、[実装編](docs/解説資料_実装編.pdf)(プログラムの中身、46 ページ)
 - デモ動画: [YouTube「PAI最終課題_ba2vwbus」](https://youtu.be/CmVHoU2eICE)(2 分 50 秒。本編は 2 倍速)
 
 ![デモ動画の1場面](docs/img/demo_frame.png)
@@ -47,7 +47,7 @@ Physical AI 応用講座1 の最終課題である(omnicampus アカウント: b
 - **人が最後に判断する**: ボードを発進させるかどうかはオペレータが決める。映像を送るのは、候補の発見からボードの発進までの間だけと仮定した。その時間は飛行時間の 11% で、常に送る場合と比べて送る時間は 89% 短い。映像のビットレート・遅れ・途切れは模擬しておらず、送る時間を数えただけである。
 - **先回り誘導**: 「推定位置 + 海流 ×(今 − 推定時刻 + 到着までの時間)」の 2 m 手前を狙う。
 - **時刻を正しく付ける**: 検出した位置には「写真を受け取った時刻」を付け、推論にかかった時間の分だけ予測がずれないようにする。
-- **正解は評価だけに使う**: 遭難者とボードの本当の位置は、評価専用の `truth_logger` だけが記録する。
+- **正解は評価だけに使う**: 遭難者とボードの正解位置は、評価専用の `truth_logger` だけが記録する。
 
 ## 使っている技術
 
@@ -84,9 +84,9 @@ ros2_ws/src/ai_patrol/ai_patrol/
   lora_link_node.py   LoRa 無線リンクの模擬(送信時間・遅延・パケットロス・統計)
   dashboard_node.py   表示画面
 worlds/make_world.py  ワールド(漂流する遊泳者・ボード・発光マーカー)
-scripts/truth_logger.py  評価用に本当の位置を記録(AI と制御には渡さない)
-tests/evaluate_mission.py 報告書と本当の位置を照合して評価
-results/              3 回分の報告書(board_run*.json)と本当の位置の記録(truth_run*.jsonl)
+scripts/truth_logger.py  評価用に正解位置を記録(AI と制御には渡さない)
+tests/evaluate_mission.py 報告書と正解位置を照合して評価
+results/              3 回分の報告書(board_run*.json)と正解位置の記録(truth_run*.jsonl)
 docs/                 説明資料・解説資料(レポート編・実装編)
 ```
 
